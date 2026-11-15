@@ -387,7 +387,7 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
           <li>Den Token kopieren und hier einfügen.</li>
         </ol>
         <div class="field"><label for="s-token">Persönlicher Discogs-Token</label><input id="s-token" autocomplete="off" spellcheck="false" placeholder="Token einfügen"></div>
-        <p class="hint">Tipp: Stell unter <a href="https://www.discogs.com/settings/seller" target="_blank" rel="noopener">Discogs → Verkäufer-Einstellungen</a> die Währung auf Euro, dann kommen die Preisvorschläge in €.</p>
+        <p class="hint"><b>Wichtig für Marktwerte:</b> Öffne <a href="https://www.discogs.com/settings/seller" target="_blank" rel="noopener">Discogs → Verkäufer-Einstellungen</a>, stell die Währung auf Euro und speichere. Du musst dafür nichts verkaufen. Erst dann gibt Discogs den Marktwert heraus.</p>
         <div class="btn-row"><button class="btn primary" id="s-save">Speichern und testen</button></div>
         <div id="s-status" hidden></div>
       </div>
@@ -578,15 +578,22 @@ async function discogsRelease(id) {
     images: imgs.map(i => i.uri || i.uri150).filter(Boolean).slice(0, 12)
   };
 }
+// Value = Discogs' market value for the condition (based on what copies actually sold for),
+// never the cheapest listing. Discogs only hands it out once the account's seller settings are filled in.
 async function discogsPrice(id, condition) {
+  let needSeller = false;
   try {
     const p = await discogs("/marketplace/price_suggestions/" + id);
     const hit = p && p[DISCOGS_COND[condition] || DISCOGS_COND["VG+"]];
     if (hit && hit.value) return { value: Math.round(hit.value * 100) / 100, currency: hit.currency || "EUR", kind: "suggestion" };
-  } catch (e) { if (e.message === "token") throw e; }
-  const st = await discogs("/marketplace/stats/" + id, { curr_abbr: "EUR" });
-  if (st && st.lowest_price && st.lowest_price.value) return { value: Math.round(st.lowest_price.value * 100) / 100, currency: st.lowest_price.currency || "EUR", kind: "lowest", numForSale: st.num_for_sale };
-  return null;
+    if (p && !Object.keys(p).length) return { value: null, kind: "none" };
+  } catch (e) { if (e.message === "token") throw e; if (e.status === 403 || e.status === 400 || e.status === 422) needSeller = true; }
+  return { value: null, kind: needSeller ? "needSeller" : "none" };
+}
+const priceLabel = (cond) => `Discogs-Marktwert für ${cond}`;
+function noPriceMsg(p) {
+  if (p && p.kind === "needSeller") return "Für den Marktwert musst du bei Discogs einmal die Verkäufer-Einstellungen ausfüllen (Profil → Einstellungen, Link dort). Bis dahin: eigenen Wert eintragen.";
+  return "Discogs hat für diese Pressung noch keine Verkäufe, daher keinen Marktwert. Trag einen eigenen Wert ein.";
 }
 async function mbSearch(query) {
   const u = "https://musicbrainz.org/ws/2/release/?fmt=json&limit=20&query=" + encodeURIComponent(query);
@@ -722,7 +729,8 @@ async function autoFromCover(d) {
     await loadDiscogsInto(d, best, true);
     if (S.draft !== d) return;
     fillForm();
-    const pr = d.valueSource === "discogs" ? ` · ${fmtMoney(d.value, d.currency)}` : "";
+    const pr = d.valueSource === "discogs" ? ` · Marktwert ${fmtMoney(d.value, d.currency)}` : "";
+    if (d.valueSource !== "discogs" && d._priceInfo) { setStatus("warn", `${d.artist} – ${d.title}. Pressung: ${[d.label, d.catno, d.country, d.year].filter(Boolean).join(", ")}. ${noPriceMsg(d._priceInfo)}`); return; }
     setStatus(unsure ? "warn" : "ok", `${d.artist} – ${d.title}${pr}. Pressung: ${[d.label, d.catno, d.country, d.year].filter(Boolean).join(", ")}. ${d.coverChoice === "url" ? "Das offizielle Cover ist gewählt, oben kannst du ein anderes Bild oder dein Foto nehmen. " : ""}${results.length > 1 ? "Falsche Pressung? Tippe auf „Andere Pressung“." : ""}${unsure ? " Die Erkennung war unsicher, bitte prüfen." : ""}`);
   } catch (e) { if (S.draft === d) setStatus("warn", lookupErr(e)); }
 }
@@ -794,8 +802,8 @@ async function pickResult(r) {
     if (S.draft !== d) return;
     fillForm();
     setStatus(d.valueSource === "discogs" ? "ok" : "warn", d.valueSource === "discogs"
-      ? `${d.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag für " + (d.list === "wishlist" ? "VG+" : d.condition)}: ${fmtMoney(d.value, d.currency)}`
-      : "Discogs hat für diese Pressung gerade keinen Preis. Trag einen eigenen Wert ein.");
+      ? `${priceLabel(d.list === "wishlist" ? "VG+" : d.condition)}: ${fmtMoney(d.value, d.currency)}`
+      : (token() ? noPriceMsg(d._priceInfo) : "Für Preise brauchst du einen Discogs-Token (Profil → Einstellungen)."));
   } catch (e) { if (S.draft === d) setStatus("warn", lookupErr(e)); }
 }
 async function loadDiscogsInto(d, hit) {
@@ -812,8 +820,9 @@ async function loadDiscogsInto(d, hit) {
   fillForm();
   const p = await priceP;
   if (S.draft !== d || !p) return;
+  d._priceInfo = p;
+  if (p.value == null) return;
   Object.assign(d, { value: p.value, currency: p.currency, valueSource: "discogs", priceKind: p.kind, valueDate: new Date().toISOString().slice(0, 10) });
-  if (p.numForSale != null) d.numForSale = p.numForSale;
 }
 async function fetchPrice(d, quiet) {
   if (!d.discogsId) { setStatus("warn", "Diese Platte ist noch nicht mit Discogs verknüpft. Tippe auf „Bei Discogs suchen“."); return; }
@@ -822,11 +831,10 @@ async function fetchPrice(d, quiet) {
   try {
     const p = await discogsPrice(d.discogsId, d.list === "wishlist" ? "VG+" : (d.condition || "VG+"));
     if (S.draft !== d) return;
-    if (!p) { setStatus("warn", "Discogs hat für diese Pressung gerade keinen Preis. Trag einen eigenen Wert ein."); return; }
+    if (!p || p.value == null) { setStatus("warn", noPriceMsg(p)); return; }
     d.value = p.value; d.currency = p.currency; d.valueSource = "discogs"; d.priceKind = p.kind; d.valueDate = new Date().toISOString().slice(0, 10);
-    if (p.numForSale != null) d.numForSale = p.numForSale;
     fillForm();
-    setStatus("ok", p.kind === "suggestion" ? `Discogs-Preisvorschlag für ${d.list === "wishlist" ? "VG+" : d.condition}: ${fmtMoney(p.value, p.currency)}` : `Günstigstes Angebot auf Discogs: ${fmtMoney(p.value, p.currency)}${d.numForSale ? ` (${d.numForSale} im Verkauf)` : ""}`);
+    setStatus("ok", `${priceLabel(d.list === "wishlist" ? "VG+" : d.condition)}: ${fmtMoney(p.value, p.currency)}`);
   } catch (e) { setStatus("warn", lookupErr(e)); }
 }
 
@@ -902,7 +910,7 @@ function fillForm() {
   const wish = d.list === "wishlist";
   $("#f-value-lbl").textContent = (wish ? "Preis ca." : "Wert") + " in " + (d.currency && d.currency !== "EUR" ? d.currency : "€");
   $("#ed-range").textContent = d.valueSource === "discogs" && d.valueDate
-    ? `${d.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag"}, Stand ${new Date(d.valueDate).toLocaleDateString("de-DE")}.` : "";
+    ? (d.priceKind === "lowest" ? `Alter Wert (günstigstes Angebot). Tippe auf „Discogs-Preis“ für den Marktwert.` : `Discogs-Marktwert, ermittelt aus echten Verkäufen. Stand ${new Date(d.valueDate).toLocaleDateString("de-DE")}.`) : "";
   $("#ed-price").hidden = !d.discogsId;
   $("#ed-alts").hidden = !(d._alts && d._alts.length > 1);
   $("#ed-recognize").hidden = !d._blob;
@@ -1042,7 +1050,7 @@ function refreshDetail(open) {
   const rows = [["Label", r.label], ["Katalognummer", r.catno], ["Jahr", r.year], ["Genre", r.genre], ["Format", r.format],
     ["Zustand", !wish && r.condition ? `${r.condition} · ${CONDITIONS[r.condition] || ""}` : null], ["Land", r.country], ["Barcode", r.barcode],
     ["Hinzugefügt", r.addedAt ? new Date(r.addedAt).toLocaleDateString("de-DE") : null]].filter(x => x[1]);
-  const src = r.valueSource === "discogs" ? `${r.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag"} · ${new Date(r.valueDate).toLocaleDateString("de-DE")}` : r.valueSource === "manuell" ? "Eigener Wert" : "";
+  const src = r.valueSource === "discogs" ? `${r.priceKind === "lowest" ? "Günstigstes Angebot (bitte Preise aktualisieren)" : "Discogs-Marktwert"} · ${new Date(r.valueDate).toLocaleDateString("de-DE")}` : r.valueSource === "manuell" ? "Eigener Wert" : "";
   $("#dt-body").innerHTML = `
     ${coverHTML(r, "detail-cover")}
     <div class="d-title"><h2>${esc(r.title || "Ohne Titel")}</h2><div class="a">${esc(r.artist || "Unbekannt")}</div></div>
@@ -1106,7 +1114,12 @@ $("#s-save").onclick = async () => {
   const st = $("#s-status"); st.hidden = false;
   if (!t) { st.className = "status"; st.textContent = "Token entfernt. Die Suche läuft jetzt über MusicBrainz, ohne Preise."; return; }
   st.className = "status"; st.innerHTML = '<span class="spinner"></span><span>Teste Verbindung …</span>';
-  try { const me = await discogs("/oauth/identity"); st.className = "status ok"; st.textContent = `Verbunden als ${me.username}. Scanner und Preise sind bereit.`; }
+  try {
+    const me = await discogs("/oauth/identity");
+    const probe = await discogsPrice(249504, "VG+");
+    if (probe.kind === "needSeller") { st.className = "status warn"; st.textContent = `Verbunden als ${me.username}. Für Marktwerte fehlt noch ein Schritt: Öffne die Verkäufer-Einstellungen (Link oben), stell die Währung auf Euro und speichere. Danach hier noch einmal testen.`; }
+    else { st.className = "status ok"; st.textContent = `Verbunden als ${me.username}. Scanner und Marktwerte sind bereit.`; }
+  }
   catch (e) { st.className = "status warn"; st.textContent = e.message === "token" ? "Der Token wurde nicht angenommen. Kopiere ihn noch einmal komplett." : lookupErr(e); }
 };
 $("#s-export").onclick = async () => {
@@ -1154,7 +1167,11 @@ $("#s-refresh").onclick = async () => {
   btn.disabled = true; let ok = 0;
   for (let i = 0; i < list.length; i++) {
     const r = list[i]; st.textContent = `${i + 1} / ${list.length}: ${r.artist} – ${r.title}`;
-    try { const p = await discogsPrice(r.discogsId, r.list === "wishlist" ? "VG+" : (r.condition || "VG+")); if (p) { await Store.saveRecord({ ...r, value: p.value, currency: p.currency, valueSource: "discogs", priceKind: p.kind, valueDate: new Date().toISOString().slice(0, 10) }); ok++; } }
+    try {
+      const p = await discogsPrice(r.discogsId, r.list === "wishlist" ? "VG+" : (r.condition || "VG+"));
+      if (p && p.kind === "needSeller") { st.textContent = noPriceMsg(p); btn.disabled = false; return; }
+      if (p && p.value != null) { await Store.saveRecord({ ...r, value: p.value, currency: p.currency, valueSource: "discogs", priceKind: p.kind, valueDate: new Date().toISOString().slice(0, 10) }); ok++; }
+    }
     catch (e) { if (e.message === "token") { st.textContent = "Der Token wurde nicht angenommen."; break; } if (e.message === "rate") await sleep(30000); }
   }
   btn.disabled = false; st.textContent = `Fertig: ${ok} von ${list.length} Preisen aktualisiert.`;
@@ -1260,7 +1277,7 @@ function renderProfile() {
       ${Object.keys(decades).length ? `<div class="panel"><h3>Jahrzehnte</h3><div class="bars">${bars(decades)}</div></div>` : ""}
       <div class="panel"><h3>Formate</h3><div class="bars">${bars(formats)}</div></div>`
       : `<div class="panel"><h3>Noch leer</h3><p class="muted" style="margin:0">Sobald du Platten einträgst, siehst du hier deine wertvollsten Stücke, Genres und Jahrzehnte.</p></div>`}
-      <p class="hint">Preise kommen von Discogs (Preisvorschlag für deinen Zustand oder günstigstes Angebot) oder sind deine eigenen Angaben.</p>
+      <p class="hint">Werte sind der Discogs-Marktwert für den Zustand deiner Platte (ermittelt aus echten Verkäufen) oder deine eigenen Angaben.</p>
     </div></main>`;
 }
 function render() {
