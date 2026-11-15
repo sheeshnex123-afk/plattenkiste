@@ -396,6 +396,27 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .qm-opt.hero-opt .ic { background: rgba(255,255,255,.22); color: #fff8ef; }
 .qm-opt small { display: block; font-weight: 400; font-size: 12.5px; opacity: .85; }
 .qm-opt svg { width: 20px; height: 20px; }
+/* Tracklist */
+.tl-list { display: grid; gap: 2px; }
+.tl-side { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: 10px 6px 4px; }
+.tl-side:first-child { padding-top: 0; }
+.tl-row { display: grid; grid-template-columns: 2.3em minmax(0, 1fr) auto 30px; align-items: center; gap: 8px; width: 100%; padding: 8px 6px; border: 0; border-radius: 12px; background: none; text-align: left; font-size: 14px; transition: background .2s, opacity .3s; }
+.tl-row:active { background: var(--surface-2); }
+.tl-pos { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tl-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-d { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tl-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tl-ic svg { width: 12px; height: 12px; }
+.tl-ic .i-pause { display: none; }
+.tl-row.on { background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
+.tl-row.on .tl-t { color: var(--accent); font-weight: 700; }
+.tl-row.playing .tl-ic { background: var(--sunset); color: #fff8ef; }
+.tl-row.playing .tl-ic .i-play { display: none; }
+.tl-row.playing .tl-ic .i-pause { display: block; }
+.tl-row.loading .tl-ic { animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .35; } }
+.tl-row.na { opacity: .42; }
+.tl-row.na .tl-ic { background: none; }
 .listen { display: flex; justify-content: center; }
 .listen .btn { min-width: 220px; }
 </style>
@@ -409,6 +430,7 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
     <span class="mp-disc vinyl" id="mp-disc"></span>
     <div class="mp-tx"><b id="mp-title"></b><span id="mp-sub"></span></div>
     <button class="mp-btn main" id="mp-toggle" aria-label="Pause"></button>
+    <button class="mp-btn" id="mp-next" aria-label="Nächster Titel" hidden><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 6.2v11.6a1 1 0 0 0 1.5.86L15 13.3V18h2.5V6H15v4.7L6.5 5.34A1 1 0 0 0 5 6.2z"/></svg></button>
     <button class="mp-btn" id="mp-close" aria-label="Player schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <span class="mp-bar" id="mp-bar"></span>
   </div>
@@ -530,7 +552,8 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
           <select id="f-format"><option>LP</option><option>2LP</option><option>3LP+</option><option>12" Maxi</option><option>10"</option><option>7" Single</option><option>Box-Set</option></select></div>
         <div class="field"><label for="f-condition">Zustand</label>
           <select id="f-condition"><option value="M">M · Mint</option><option value="NM">NM · Near Mint</option><option value="VG+" selected>VG+ · Very Good Plus</option><option value="VG">VG · Very Good</option><option value="G+">G+ · Good Plus</option><option value="G">G · Good</option><option value="F">F · Fair</option><option value="P">P · Poor</option></select></div>
-        <div class="field full"><label for="f-vinyl">Vinylfarbe</label><select id="f-vinyl"></select></div>
+        <div class="field"><label for="f-vinyl">Vinylfarbe</label><select id="f-vinyl"></select></div>
+        <div class="field"><label for="f-vpattern">Muster</label><select id="f-vpattern"></select></div>
         <div class="field"><label for="f-country">Land</label><input id="f-country"></div>
         <div class="field"><label for="f-barcode">Barcode</label><input id="f-barcode" inputmode="numeric"></div>
       </div>
@@ -740,21 +763,32 @@ function vinylFromFormats(formats) {
   const clear = /\b(clear|transparent|translucent|crystal|see-through)\b/.test(txt);
   const multi = /(splatter|marble|swirl|galaxy|haze|tie-dye|colou?r-in-colou?r|mixed|multi|split|starburst|vortex|blend|cloud|sunburst|stripe)/.test(txt);
   if (!cols.length) return clear ? { k: "clear" } : { k: "solid", a: "black" };
+  if (clear && multi) return { k: "splatter", a: cols[0] };
   if (multi || cols.length > 1) return { k: "marble", a: cols[0], b: cols[1] || (clear ? "white" : "black") };
   return { k: clear ? "clear" : "solid", a: cols[0] };
 }
+const VPATTERN = { solid: "Einfarbig", clear: "Transparent", marble: "Marmoriert", splatter: "Splatter auf transparent", picture: "Picture Disc (Cover-Motiv)" };
+// r.vinylManual = {a: colour, k: pattern}; either part may be empty and then comes from Discogs (older versions stored a plain string).
+function manualVinyl(r) {
+  const m = r.vinylManual;
+  if (!m) return {};
+  if (typeof m === "string") return VPATTERN[m] && m !== "solid" ? { k: m } : { a: m };
+  return m;
+}
 function vinylOf(r) {
-  const m = r.vinylManual, v = r.vinyl || {};
-  if (m === "clear") return { k: "clear" };
-  if (m === "picture") return { k: "picture" };
-  if (m === "marble") return { k: "marble", a: v.a || "red", b: v.b || "white" };
-  if (m) return { k: "solid", a: m };
-  return r.vinyl || { k: "solid", a: "black" };
+  const auto = r.vinyl || { k: "solid", a: "black" }, m = manualVinyl(r);
+  if (!m.a && !m.k) return auto;
+  const k = m.k || auto.k || "solid";
+  let a = m.a || auto.a || (k === "solid" ? "black" : k === "clear" ? undefined : "blue");
+  if (!m.a && a === "black" && k !== "solid") a = k === "clear" ? undefined : "blue";
+  const b = auto.b && auto.b !== a ? auto.b : (a === "white" ? "black" : "white");
+  return { k, a, b };
 }
 function vinylLabel(r) {
   const v = vinylOf(r), n = k => (VCOL[k] || VCOL.black)[0];
   if (v.k === "picture") return "Picture Disc";
   if (v.k === "clear") return v.a ? n(v.a) + " transparent" : "Transparent";
+  if (v.k === "splatter") return `Transparent, ${n(v.a)} gesprenkelt`;
   if (v.k === "marble") return `${n(v.a)}/${n(v.b)} marmoriert`;
   return n(v.a);
 }
@@ -762,6 +796,9 @@ function discHTML(r, cls = "") {
   const v = vinylOf(r), c = k => (VCOL[k] || VCOL.black)[1];
   let base, gl = "rgba(0,0,0,.16)", kind = "vinyl";
   if (v.k === "picture" && coverURL(r)) { kind += " pic"; base = `url("${coverURL(r)}")`; }
+  else if (v.k === "splatter") { const a = c(v.a);
+    const dots = [[22, 30, 6], [64, 18, 4], [78, 52, 7], [40, 70, 5], [70, 80, 4], [15, 60, 3.5], [52, 40, 2.5], [86, 34, 3], [30, 88, 3], [58, 62, 3]];
+    base = dots.map(([x, y, s]) => `radial-gradient(circle at ${x}% ${y}%, ${a} 0 ${s}%, transparent ${s + 1}%)`).join(", ") + ", rgba(235,228,215,.38)"; }
   else if (v.k === "clear") base = v.a ? `color-mix(in srgb, ${c(v.a)} 58%, transparent)` : "rgba(235,228,215,.4)";
   else if (v.k === "marble") { const a = c(v.a), b = c(v.b); base = `radial-gradient(circle at 28% 30%, ${b} 0 7%, transparent 8%), radial-gradient(circle at 70% 64%, ${b} 0 5%, transparent 6%), radial-gradient(circle at 38% 76%, ${b} 0 4%, transparent 5%), radial-gradient(circle at 76% 24%, ${b} 0 3%, transparent 4%), conic-gradient(from 20deg, ${a}, ${b} 22%, ${a} 40%, ${b} 63%, ${a} 82%, ${b})`; }
   else { base = c(v.a); if (!v.a || v.a === "black") gl = "rgba(255,255,255,.055)"; }
@@ -827,6 +864,30 @@ async function discogsSearch(params) {
   const res = await discogs("/database/search", { type: "release", per_page: 25, ...params });
   const vinyl = (res.results || []).filter(h => (h.format || []).some(f => /Vinyl|LP|Box Set/i.test(f)));
   return (vinyl.length ? vinyl : res.results || []).map(searchHitToResult);
+}
+// Scanners often read a 12-digit UPC as 13-digit EAN with a leading 0 (or the other way round): try both.
+function barcodeVariants(b) {
+  const d = String(b || "").replace(/\D/g, ""), v = new Set([d]), t = d.replace(/^0+/, "");
+  if (t.length >= 8) v.add(t);
+  if (d.length === 12) v.add("0" + d);
+  return [...v].filter(Boolean);
+}
+const SEARCH_NOISE = /\b(vinyl|lp|2lp|schallplatte|platte|record|limited|edition|deluxe|remaster(ed)?|reissue|ost|original|soundtrack|o\.s\.t\.?)\b/gi;
+// Several attempts from precise to loose; stops at the first one that finds something.
+async function discogsFind({ barcode, text, artist, title }) {
+  for (const b of barcodeVariants(barcode)) { const r = await discogsSearch({ barcode: b }); if (r.length) return r; }
+  for (const b of barcodeVariants(barcode)) { const r = await discogsSearch({ q: b }); if (r.length) return r; }
+  const tries = [text, [artist, title].filter(Boolean).join(" "), title, String(title || "").replace(SEARCH_NOISE, " "), String(text || "").replace(SEARCH_NOISE, " ")];
+  const words = String(title || text || "").replace(SEARCH_NOISE, " ").split(/\s+/).filter(Boolean);
+  if (words.length >= 3) words.forEach((_, i) => tries.push(words.filter((__, j) => j !== i).join(" ")));
+  const seen = new Set();
+  for (const q of tries) {
+    const k = String(q || "").replace(/[–—:\/]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+    if (k.length < 2 || seen.has(k)) continue; seen.add(k);
+    const r = await discogsSearch({ q: k }); if (r.length) return r;
+    if (seen.size >= 7) break;
+  }
+  return [];
 }
 async function discogsRelease(id) {
   const r = await discogs("/releases/" + id, { curr_abbr: "EUR" });
@@ -985,7 +1046,7 @@ async function autoFromCover(d) {
       discogsSearch({ artist: d.artist, release_title: d.title, format: "Vinyl" })
     ]);
     let results = byBarcode.length ? byBarcode : byCatno.length ? byCatno : byTitle;
-    if (!results.length) results = await discogsSearch({ q: d.artist + " " + d.title });
+    if (!results.length) results = await discogsFind({ barcode: d.barcode, artist: d.artist, title: d.title, text: d.artist + " " + d.title });
     if (S.draft !== d) return;
     if (!results.length) { setStatus("warn", `Erkannt: ${d.artist} – ${d.title}, aber bei Discogs nichts gefunden. Trag den Wert selbst ein.`); return; }
     d._alts = results;
@@ -1018,10 +1079,12 @@ async function runSearch({ barcode, text }) {
   S.pending = { barcode: barcode || "" };
   try {
     let results = [];
-    if (token()) results = barcode ? await discogsSearch({ barcode }) : await discogsSearch({ q: text });
+    const base = S.draftBase || {};
+    if (token()) results = await discogsFind(barcode ? { barcode } : { barcode: base.barcode, text, artist: base.artist, title: base.title });
     if (!results.length) {
-      const q = barcode ? "barcode:" + barcode : text;
-      results = await mbSearch(q).catch(() => []);
+      for (const q of barcode ? barcodeVariants(barcode).map(b => "barcode:" + b) : [text, String(text).replace(SEARCH_NOISE, " ")]) {
+        results = await mbSearch(q).catch(() => []); if (results.length) break;
+      }
     }
     if (!results.length) { resStatus("warn", barcode ? "Zu diesem Barcode wurde nichts gefunden. Trage die Platte selbst ein oder suche nach Künstler und Titel." : "Nichts gefunden. Versuche andere Suchwörter."); return; }
     resStatus(results.length === 1 ? null : "ok", results.length === 1 ? null : `${results.length} Treffer. Wähle deine Pressung (Label, Land und Jahr helfen).`);
@@ -1170,11 +1233,12 @@ function fillForm() {
   const d = S.draft; if (!d) return;
   for (const k of F) { const el = $("#f-" + k); if (el) el.value = d[k] ?? (k === "format" ? "LP" : k === "condition" ? "VG+" : ""); }
   $("#f-value").value = d.value != null ? String(d.value).replace(".", ",") : "";
-  const auto = d.vinyl ? vinylLabel({ ...d, vinylManual: null }) : null;
-  $("#f-vinyl").innerHTML = `<option value="">${auto ? `Automatisch (Discogs: ${esc(auto)})` : "Automatisch (Schwarz)"}</option>` +
-    Object.entries(VCOL).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join("") +
-    `<option value="clear">Transparent</option><option value="marble">Marmoriert / Splatter</option><option value="picture">Picture Disc (Cover-Motiv)</option>`;
-  $("#f-vinyl").value = d.vinylManual || "";
+  const av = d.vinyl || { k: "solid", a: "black" }, mv = manualVinyl(d);
+  $("#f-vinyl").innerHTML = `<option value="">Automatisch${av.a ? ` (${VCOL[av.a] ? VCOL[av.a][0] : ""})` : ""}</option>` +
+    Object.entries(VCOL).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join("");
+  $("#f-vpattern").innerHTML = `<option value="">Automatisch (${VPATTERN[av.k] || "Einfarbig"})</option>` +
+    Object.entries(VPATTERN).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+  $("#f-vinyl").value = mv.a || ""; $("#f-vpattern").value = mv.k || "";
   $("#ed-cover").outerHTML = coverHTML(d, "", 'id="ed-cover"');
   const wish = d.list === "wishlist";
   $("#f-value-lbl").textContent = (wish ? "Preis ca." : "Wert") + " in " + (d.currency && d.currency !== "EUR" ? d.currency : "€");
@@ -1220,7 +1284,8 @@ async function loadImagesFor(d) {
 function readForm() {
   const d = S.draft;
   for (const k of F) { const el = $("#f-" + k); if (el) d[k] = el.value.trim(); }
-  d.vinylManual = $("#f-vinyl").value || null;
+  const va = $("#f-vinyl").value, vk = $("#f-vpattern").value;
+  d.vinylManual = va || vk ? { ...(va ? { a: va } : {}), ...(vk ? { k: vk } : {}) } : null;
   const v = num($("#f-value").value);
   const changed = v == null ? d.value != null : (d.value == null || Math.abs(v - d.value) > 0.001);
   if (changed) { d.value = v; d.valueSource = v == null ? null : "manuell"; d.priceKind = null; }
@@ -1279,7 +1344,7 @@ $("#ed-search").onclick = () => {
   const text = [d.artist, d.title].filter(Boolean).join(" ");
   if (!text && !d.barcode) { toast("Trag zuerst Künstler oder Titel ein."); return; }
   S.draftBase = d;
-  runSearch(d.barcode && !text ? { barcode: d.barcode } : { text: text + (d.catno ? " " + d.catno : "") });
+  runSearch(d.barcode && !text ? { barcode: d.barcode } : { text });
 };
 $("#ed-price").onclick = () => { readForm(); fetchPrice(S.draft); };
 $("#f-condition").addEventListener("change", () => { readForm(); if (S.draft.discogsId && token() && S.draft.valueSource !== "manuell") fetchPrice(S.draft); });
@@ -1328,8 +1393,9 @@ const IC = {
   heart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`
 };
 const audio = new Audio(); audio.preload = "none";
-const P = { id: null, track: null };
-const trackCache = new Map();
+// P.queue = the record's tracklist, P.idx = the entry playing, P.track = that entry once its preview is loaded.
+// P.seq invalidates older async starts when the user taps something else.
+const P = { id: null, track: null, queue: null, idx: -1, seq: 0 };
 const isPlaying = id => P.id === id && !!P.track && !audio.paused;
 let jsonpN = 0;
 // Deezer has no CORS headers but supports JSONP; iTunes too (callback param).
@@ -1344,82 +1410,231 @@ function jsonp(url, ms = 9000) {
     document.head.appendChild(s);
   });
 }
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; await fn(items[k], k); } }));
+}
 const cleanTitle = s => String(s || "").replace(/\s*[\(\[].*?[\)\]]/g, "").replace(/\s*[-–:]\s*(remaster|deluxe|expanded|anniversary|special|bonus).*$/i, "").trim();
 const sameish = (a, b) => { const x = normalize(cleanTitle(a)), y = normalize(cleanTitle(b)); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)); };
-async function deezerTop(artist, album) {
-  const find = list => (list || []).find(a => sameish(a.title, album) && (!artist || sameish(a.artist && a.artist.name, artist)));
-  let alb = find((await jsonp(`https://api.deezer.com/search/album?output=jsonp&limit=15&q=${encodeURIComponent(`artist:"${artist}" album:"${album}"`)}`)).data);
-  if (!alb) alb = find((await jsonp(`https://api.deezer.com/search/album?output=jsonp&limit=15&q=${encodeURIComponent(artist + " " + album)}`)).data);
+const trackKey = s => normalize(cleanTitle(s));
+const sameTrack = (a, b) => { const x = trackKey(a), y = trackKey(b); return !!x && !!y && (x === y || (Math.min(x.length, y.length) >= 5 && (x.includes(y) || y.includes(x)))); };
+const fmtDur = s => s ? Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0") : "";
+const artistOf = r => /^various/i.test(r.artist || "") ? "" : cleanArtist(r.artist);
+
+// The album with previews: Deezer first (it knows how popular each song is), then iTunes.
+// Exact title before "contains" (so "Rumours" doesn't land on "Rumours Live"), then the shortest title.
+function bestAlbum(list, titleOf, artistOfHit, album, artist) {
+  const k = trackKey(album);
+  return (list || []).filter(a => sameish(titleOf(a), album) && (!artist || sameish(artistOfHit(a), artist)))
+    .sort((a, b) => ((trackKey(titleOf(b)) === k) - (trackKey(titleOf(a)) === k)) || (trackKey(titleOf(a)).length - trackKey(titleOf(b)).length))[0];
+}
+async function deezerAlbum(artist, album) {
+  const find = list => bestAlbum(list, a => a.title, a => a.artist && a.artist.name, album, artist);
+  let alb = artist ? find((await jsonp(`https://api.deezer.com/search/album?output=jsonp&limit=20&q=${encodeURIComponent(`artist:"${artist}" album:"${album}"`)}`)).data) : null;
+  if (!alb) alb = find((await jsonp(`https://api.deezer.com/search/album?output=jsonp&limit=20&q=${encodeURIComponent((artist + " " + album).trim())}`)).data);
   if (!alb) return null;
-  const tracks = ((await jsonp(`https://api.deezer.com/album/${alb.id}/tracks?output=jsonp&limit=100`)).data || []).filter(t => t.preview);
-  if (!tracks.length) return null;
-  // "Most famous" = the album song that ranks highest among the artist's overall top songs (ranks inside one edition are unreliable).
-  let top = null;
-  if (alb.artist && alb.artist.id && artist) {
+  const tracks = (await jsonp(`https://api.deezer.com/album/${alb.id}/tracks?output=jsonp&limit=100`)).data || [];
+  return { src: "deezer", artistId: alb.artist && alb.artist.id, title: alb.title,
+    tracks: tracks.map(t => ({ title: t.title_short || t.title, preview: t.preview || undefined, rank: t.rank || 0, dur: t.duration })) };
+}
+async function itunesAlbum(artist, album) {
+  const res = await jsonp(`https://itunes.apple.com/search?entity=album&limit=25&country=DE&term=${encodeURIComponent((artist + " " + album).trim())}`);
+  const a = bestAlbum(res.results, x => x.collectionName, x => x.artistName, album, artist);
+  if (!a) return null;
+  const l = await jsonp(`https://itunes.apple.com/lookup?entity=song&country=DE&id=${a.collectionId}`);
+  const tracks = (l.results || []).filter(x => x.wrapperType === "track").sort((x, y) => (x.discNumber - y.discNumber) || (x.trackNumber - y.trackNumber))
+    .map(x => ({ title: x.trackName, preview: x.previewUrl || undefined, rank: 0, dur: Math.round((x.trackTimeMillis || 0) / 1000) }));
+  return tracks.length ? { src: "itunes", title: a.collectionName, tracks } : null;
+}
+// A single song on its own: for pressings that aren't on Deezer/iTunes as an album (vinyl-only compilations, megamixes …).
+async function searchTrack(artist, title, album) {
+  const t = cleanTitle(title); if (!t) return null;
+  const pick = (list, name, art, alb, prev, rank) => (list || [])
+    .filter(x => prev(x) && sameTrack(name(x), title) && (!artist || sameish(art(x), artist)))
+    .sort((a, b) => (sameish(alb(b), album) - sameish(alb(a), album)) || (rank(b) - rank(a)))[0];
+  try {
+    for (const q of [artist ? `artist:"${artist}" track:"${t}"` : `track:"${t}"`, `${artist} ${t}`.trim()]) {
+      const d = await jsonp(`https://api.deezer.com/search?output=jsonp&limit=25&q=${encodeURIComponent(q)}`);
+      const x = pick(d.data, x => x.title_short || x.title, x => x.artist && x.artist.name, x => x.album && x.album.title, x => x.preview, x => x.rank || 0);
+      if (x) return { preview: x.preview, rank: x.rank || 0 };
+    }
+  } catch {}
+  try {
+    const d = await jsonp(`https://itunes.apple.com/search?entity=song&limit=25&country=DE&term=${encodeURIComponent(`${artist} ${t}`.trim())}`);
+    const x = pick(d.results, x => x.trackName, x => x.artistName, x => x.collectionName, x => x.previewUrl, () => 0);
+    if (x) return { preview: x.previewUrl, rank: 0 };
+  } catch {}
+  return null;
+}
+function flattenTracks(tl) {
+  const mk = t => ({ pos: t.position || "", title: t.title, dur: t.duration || "", artist: (t.artists || []).map(a => cleanArtist(a.anv || a.name)).join(" & ") });
+  const out = [];
+  for (const t of tl || []) {
+    if (t.type_ === "heading") continue;
+    if (t.type_ === "index" && t.sub_tracks) { t.sub_tracks.forEach(s => out.push(mk(s))); continue; }
+    out.push(mk(t));
+  }
+  return out.filter(t => t.title);
+}
+// Tracklist of the pressing (Discogs) with previews matched from the album; preview: undefined = not looked up yet, null = none.
+const tlCache = new Map();
+function getTracklist(r) {
+  const key = [r.id, r.discogsId || "", r.artist, r.title].join("|");
+  if (tlCache.has(key)) return tlCache.get(key);
+  const p = (async () => {
+    const artist = artistOf(r), album = cleanTitle(r.title);
+    const discP = r.discogsId ? discogs("/releases/" + r.discogsId).then(rel => flattenTracks(rel.tracklist)).catch(() => []) : Promise.resolve([]);
+    const albP = (async () => {
+      if (!album) return null;
+      try { const a = await deezerAlbum(artist, album); if (a) return a; } catch {}
+      try { return await itunesAlbum(artist, album); } catch { return null; }
+    })();
+    const [disc, alb] = await Promise.all([discP, albP]);
+    let list = [];
+    if (disc.length) {
+      list = disc;
+      if (alb) for (const t of list) { const m = alb.tracks.find(x => sameTrack(x.title, t.title)); if (m) { t.preview = m.preview; t.rank = m.rank; if (!t.dur) t.dur = fmtDur(m.dur); } }
+    } else if (alb) list = alb.tracks.map((t, i) => ({ pos: String(i + 1), title: t.title, dur: fmtDur(t.dur), preview: t.preview, rank: t.rank }));
+    return { list, alb };
+  })();
+  tlCache.set(key, p); p.catch(() => tlCache.delete(key));
+  return p;
+}
+function resolvePreview(r, t, albumTitle) {
+  if (t.preview !== undefined) return Promise.resolve(t.preview);
+  if (!t._p) t._p = searchTrack(t.artist || artistOf(r), t.title, albumTitle || r.title)
+    .then(x => { t.preview = x ? x.preview : null; if (x && x.rank) t.rank = x.rank; t._p = null; return t.preview; })
+    .catch(() => { t._p = null; return (t.preview = null); });
+  return t._p;
+}
+// "Most famous" = the album song that ranks highest among the artist's overall top songs on Deezer;
+// otherwise the most popular of the songs we can play.
+async function topIndex(r, tl) {
+  const { list, alb } = tl;
+  if (alb && alb.src === "deezer" && alb.artistId && artistOf(r)) {
     try {
-      const names = new Set(tracks.map(t => normalize(cleanTitle(t.title_short || t.title))));
-      const hits = ((await jsonp(`https://api.deezer.com/artist/${alb.artist.id}/top?output=jsonp&limit=100`)).data || [])
-        .filter(t => t.preview && names.has(normalize(cleanTitle(t.title_short || t.title))));
-      top = hits[0] || null;
+      const top = (await jsonp(`https://api.deezer.com/artist/${alb.artistId}/top?output=jsonp&limit=100`)).data || [];
+      for (const x of top) {
+        const i = list.findIndex(t => sameTrack(t.title, x.title_short || x.title));
+        if (i < 0) continue;
+        if (!list[i].preview && x.preview) list[i].preview = x.preview;
+        if (list[i].preview) return i;
+      }
     } catch {}
   }
-  if (!top) top = tracks.reduce((a, b) => (b.rank || 0) > (a.rank || 0) ? b : a);
-  return { title: top.title_short || top.title, artist: (top.artist && top.artist.name) || artist, album: alb.title, preview: top.preview };
+  await pool(list, 4, t => resolvePreview(r, t, alb && alb.title));
+  let best = -1;
+  list.forEach((t, i) => { if (t.preview && (best < 0 || (t.rank || 0) > (list[best].rank || 0))) best = i; });
+  return best;
 }
-async function itunesTop(artist, album) {
-  const res = await jsonp(`https://itunes.apple.com/search?entity=song&limit=50&country=DE&term=${encodeURIComponent(artist + " " + album)}`);
-  const s = (res.results || []).find(x => x.previewUrl && sameish(x.collectionName, album) && (!artist || sameish(x.artistName, artist)));
-  return s ? { title: s.trackName, artist: s.artistName, album: s.collectionName, preview: s.previewUrl } : null;
-}
-async function findTopTrack(r) {
-  const key = (r.artist || "") + "|" + (r.title || "");
-  if (trackCache.get(key)) return trackCache.get(key);
-  const artist = /^various/i.test(r.artist || "") ? "" : cleanArtist(r.artist), album = cleanTitle(r.title);
-  if (!album) return null;
-  let t = null;
-  try { t = await deezerTop(artist, album); } catch {}
-  if (!t) try { t = await itunesTop(artist, album); } catch {}
-  if (t) trackCache.set(key, t);
-  return t;
-}
+
+function togglePlay() { if (!P.track) return; if (audio.paused) audio.play().catch(() => {}); else audio.pause(); }
 async function playFor(id) {
   const r = S.records.find(x => x.id === id); if (!r) return;
-  if (P.id === id && P.track) { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); return; }
-  audio.pause(); P.id = id; P.track = null; showPlayer(r, "Suche den bekanntesten Song …");
-  const t = await findTopTrack(r);
-  if (P.id !== id) return;
-  if (!t) { stopPlayer(); toast("Für dieses Album habe ich leider keine Hörprobe gefunden."); return; }
-  P.track = t; audio.src = t.preview; showPlayer(r);
-  try { await audio.play(); } catch (e) { if (e.name !== "NotAllowedError" && P.id === id) { stopPlayer(); toast("Die Hörprobe ließ sich nicht laden. Bist du online?"); } }
-  if ("mediaSession" in navigator && P.id === id) {
-    const art = r.coverUrl || coverURL(r);
-    try { navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: r.title || t.album, artwork: art && !art.startsWith("blob:") ? [{ src: art, sizes: "512x512" }] : [] }); } catch {}
+  if (P.id === id && P.track) { togglePlay(); return; }
+  const seq = ++P.seq; audio.pause(); Object.assign(P, { id, track: null, queue: null, idx: -1 });
+  showPlayer(r, "Suche den bekanntesten Song …");
+  const tl = await getTracklist(r).catch(() => ({ list: [] }));
+  if (P.seq !== seq) return;
+  const i = tl.list.length ? await topIndex(r, tl) : -1;
+  if (P.seq !== seq) return;
+  if (i < 0) { stopPlayer(); toast("Für diese Platte habe ich leider keine Hörprobe gefunden."); return; }
+  P.queue = tl.list; playIndex(r, i, seq);
+}
+async function playTrackAt(id, i) {
+  const r = S.records.find(x => x.id === id); if (!r) return;
+  if (P.id === id && P.idx === i && P.track) { togglePlay(); return; }
+  const tl = await getTracklist(r);
+  const seq = ++P.seq; audio.pause(); Object.assign(P, { id, track: null, queue: tl.list, idx: i });
+  playIndex(r, i, seq, true);
+}
+// Plays entry i; when a song has no preview it moves on to the next one (unless the user picked exactly that song).
+async function playIndex(r, i, seq, strict) {
+  const q = P.queue || [];
+  for (let k = i; k < q.length; k++) {
+    const t = q[k]; P.idx = k; P.track = null;
+    showPlayer(r, `Lade „${t.title}“ …`);
+    const url = await resolvePreview(r, t);
+    if (P.seq !== seq) return;
+    if (!url) { if (strict) { toast(`Für „${t.title}“ gibt es leider keine Hörprobe.`); stopPlayer(); return; } continue; }
+    P.track = t; audio.src = url; showPlayer(r);
+    try { await audio.play(); } catch (e) { if (e.name !== "NotAllowedError" && P.seq === seq) { t.preview = undefined; if (strict) { stopPlayer(); toast("Die Hörprobe ließ sich nicht laden. Bist du online?"); return; } continue; } }
+    if ("mediaSession" in navigator && P.seq === seq) {
+      const art = r.coverUrl || coverURL(r);
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist || r.artist || "", album: r.title || "", artwork: art && !art.startsWith("blob:") ? [{ src: art, sizes: "512x512" }] : [] });
+        navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
+      } catch {}
+    }
+    return;
   }
+  if (P.seq === seq) { if (strict || !P.track) stopPlayer(); }
+}
+function nextTrack() {
+  const r = S.records.find(x => x.id === P.id);
+  if (!r || !P.queue || P.idx >= P.queue.length - 1) { syncPlayer(); return; }
+  playIndex(r, P.idx + 1, ++P.seq);
 }
 function showPlayer(r, msg) {
   const mp = $("#mp"); mp.hidden = false; document.body.classList.add("has-player");
   $("#mp-disc").outerHTML = discHTML(r, "mp-disc").replace("<span ", '<span id="mp-disc" ');
   $("#mp-title").textContent = msg || P.track.title;
-  $("#mp-sub").innerHTML = msg ? esc(r.artist || "") : `<span class="mp-eq"><i></i><i></i><i></i></span>${esc(r.artist || P.track.artist)} · Hörprobe`;
+  const pos = P.track && P.track.pos ? ` · ${P.track.pos}` : "";
+  $("#mp-sub").innerHTML = msg ? esc(r.artist || "") : `<span class="mp-eq"><i></i><i></i><i></i></span>${esc(P.track.artist || r.artist || "")}${esc(pos)} · Hörprobe`;
   syncPlayer();
 }
 function stopPlayer() {
-  audio.pause(); audio.removeAttribute("src"); P.id = null; P.track = null;
+  P.seq++; audio.pause(); audio.removeAttribute("src"); Object.assign(P, { id: null, track: null, queue: null, idx: -1 });
   $("#mp").hidden = true; document.body.classList.remove("has-player"); syncPlayer();
 }
+let dtList = null; // tracklist shown on the open detail page
 function syncPlayer() {
   const playing = !!P.track && !audio.paused, waiting = !!P.id && !P.track;
   $("#mp").classList.toggle("paused", !playing);
   $("#mp-toggle").innerHTML = waiting ? '<span class="spinner" style="border-color:rgba(255,255,255,.4);border-top-color:#fff;margin:0"></span>' : playing ? IC.pause : IC.play;
   $("#mp-toggle").setAttribute("aria-label", playing ? "Pause" : "Abspielen");
+  $("#mp-next").hidden = !(P.queue && P.idx < P.queue.length - 1);
   document.querySelectorAll(".card[data-id]").forEach(c => c.classList.toggle("playing", isPlaying(c.dataset.id)));
   document.querySelectorAll("[data-stage]").forEach(s => s.classList.toggle("playing", isPlaying(s.dataset.stage)));
   const dp = $("#dt-play"); if (dp && S.detailId) dp.innerHTML = isPlaying(S.detailId) ? `${IC.pause} Pause` : `${IC.play} Bekanntesten Song anhören`;
+  const here = P.id && P.id === S.detailId && P.queue === dtList;
+  document.querySelectorAll("[data-tl]").forEach(b => {
+    const i = +b.dataset.tl, t = dtList && dtList[i], on = here && P.idx === i;
+    b.classList.toggle("on", !!on); b.classList.toggle("playing", !!on && playing); b.classList.toggle("loading", !!on && !P.track);
+    b.classList.toggle("na", !!t && t.preview === null);
+  });
 }
-["play", "pause", "ended"].forEach(ev => audio.addEventListener(ev, syncPlayer));
+async function renderTracklist(r) {
+  const box = $("#dt-tracks"); if (!box) return;
+  let tl; try { tl = await getTracklist(r); } catch { tl = { list: [] }; }
+  if (S.detailId !== r.id || !box.isConnected) return;
+  const list = tl.list, note = $("#tl-note"), out = box.querySelector(".tl-list");
+  dtList = list;
+  if (!list.length) {
+    note.textContent = "";
+    out.innerHTML = `<p class="muted" style="margin:0;font-size:14px">Keine Titelliste gefunden.${r.discogsId ? "" : " Verknüpfe die Platte mit Discogs: Bearbeiten → „Bei Discogs suchen“."}</p>`;
+    return;
+  }
+  let side = null;
+  out.innerHTML = list.map((t, i) => {
+    const s = /^[A-Z]\d*/i.test(t.pos) && !/^\d/.test(t.pos) ? t.pos[0].toUpperCase() : null;
+    const head = s && s !== side ? (side = s, `<div class="tl-side">Seite ${s}</div>`) : "";
+    return head + `<button class="tl-row" data-tl="${i}"><span class="tl-pos">${esc(t.pos || i + 1)}</span><span class="tl-t">${esc(t.title)}</span><span class="tl-d">${esc(t.dur || "")}</span><span class="tl-ic">${IC.play}${IC.pause}</span></button>`;
+  }).join("");
+  out.querySelectorAll(".tl-row").forEach(b => b.onclick = () => playTrackAt(r.id, +b.dataset.tl));
+  note.textContent = `${list.length} Titel · prüfe Hörproben …`;
+  syncPlayer();
+  // Find out in the background which songs have a preview, so unplayable ones show greyed out.
+  await pool(list, 3, async t => { await resolvePreview(r, t, tl.alb && tl.alb.title); if (S.detailId === r.id) syncPlayer(); });
+  if (S.detailId !== r.id || !note.isConnected) return;
+  const n = list.filter(t => t.preview).length;
+  note.textContent = n === list.length ? `${n} Titel, alle anhörbar` : `${n} von ${list.length} anhörbar`;
+}
+["play", "pause"].forEach(ev => audio.addEventListener(ev, syncPlayer));
+audio.addEventListener("ended", () => { $("#mp-bar").style.setProperty("--p", "0%"); if (P.queue && P.idx < P.queue.length - 1) nextTrack(); else syncPlayer(); });
 audio.addEventListener("timeupdate", () => { $("#mp-bar").style.setProperty("--p", (audio.duration ? audio.currentTime / audio.duration * 100 : 0) + "%"); });
-audio.addEventListener("ended", () => $("#mp-bar").style.setProperty("--p", "0%"));
-$("#mp-toggle").onclick = () => { if (!P.track) return; if (audio.paused) audio.play().catch(() => {}); else audio.pause(); };
+$("#mp-toggle").onclick = togglePlay;
+$("#mp-next").onclick = nextTrack;
 $("#mp-close").onclick = stopPlayer;
 $("#mp .mp-tx").onclick = () => { if (P.id && S.records.some(x => x.id === P.id) && !stack.length) openDetail(P.id); };
 
@@ -1467,6 +1682,7 @@ function refreshDetail(open, opts) {
     <div class="d-title"><h2>${esc(r.title || "Ohne Titel")}</h2><div class="a">${esc(r.artist || "Unbekannt")}</div></div>
     <div class="chips">${[r.year, r.format, wish ? null : r.condition, (r.genre || "").split(" / ")[0], vinylOf(r).a === "black" && vinylOf(r).k === "solid" ? null : vinylLabel(r)].filter(Boolean).map(c => `<span class="badge">${esc(c)}</span>`).join("")}</div>
     <div class="listen"><button class="btn primary" id="dt-play">${IC.play} Bekanntesten Song anhören</button></div>
+    <div class="panel" id="dt-tracks"><div class="sec-title" style="padding:0"><h3>Titelliste</h3><span class="muted" id="tl-note" style="font-size:12.5px">lädt …</span></div><div class="tl-list"><div class="status"><span class="spinner"></span>Suche Titel und Hörproben …</div></div></div>
     <div class="d-value"><div class="eyebrow">${wish ? "Preis ca." : "Wert"}</div><div class="v">${fmtMoney(r.value, r.currency)}</div>${src ? `<div class="r">${esc(src)}</div>` : ""}</div>
     ${rows.length ? `<dl class="specs">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` : ""}
     ${r.notes ? `<div class="panel"><div class="eyebrow">Notizen</div><div>${esc(r.notes)}</div></div>` : ""}
@@ -1485,7 +1701,7 @@ function refreshDetail(open, opts) {
     await Store.removeRecord(r); S.detailId = null; closeSheet(); toast("Gelöscht");
   };
   if (open) openSheet("#sheet-detail", opts);
-  syncPlayer();
+  dtList = null; syncPlayer(); renderTracklist(r);
 }
 
 /* ---------------- Profile & settings ---------------- */
