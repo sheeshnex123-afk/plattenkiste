@@ -117,8 +117,11 @@ h1, h2, h3 { font-family: var(--f-display); font-optical-sizing: auto; font-vari
   transition: translate .5s cubic-bezier(.2,.7,.2,1); animation: turn 7s linear infinite; }
 .card:nth-child(3n+2) .disc-peek { animation-duration: 8.5s; }
 .card:nth-child(3n) .disc-peek { animation-duration: 6.2s; }
-.card:active .sleeve .cover, .card:hover .sleeve .cover { transform: translateX(-4%) rotate(-1.5deg); }
-.card:active .disc-peek, .card:hover .disc-peek { translate: 8% 0; }
+.card:active .sleeve .cover { transform: translateX(-3%); }
+.card:active .disc-peek { translate: 8% 0; }
+@media (hover: hover) { .card:hover .sleeve .cover { transform: translateX(-3%); } .card:hover .disc-peek { translate: 8% 0; } }
+.disc-peek, .dt-disc, .mp-disc { will-change: rotate; backface-visibility: hidden; }
+.dt-disc.no-intro { animation: turn 9s linear infinite; }
 .card.playing .disc-peek { translate: 12% 0; animation-duration: 1.8s; }
 .card.playing .sleeve .cover { transform: translateX(-5%); }
 .cover-play { position: absolute; z-index: 2; left: 7px; bottom: 7px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff;
@@ -673,7 +676,14 @@ const Store = {
     const body = JSON.parse(JSON.stringify(r)); for (const k of Object.keys(body)) if (k.startsWith("_")) delete body[k];
     await IDB.put("records", body);
     const i = S.records.findIndex(x => x.id === body.id); if (i >= 0) S.records[i] = body; else S.records.push(body);
-    render(); refreshDetail();
+    render(); if (body.id === S.detailId) refreshDetail();
+  },
+  // Background colour lookup: store it and only swap the record's disc in place, so nothing on screen jumps.
+  async saveVinylQuiet(r) {
+    await IDB.put("records", r);
+    const i = S.records.findIndex(x => x.id === r.id); if (i < 0) return; S.records[i] = r;
+    document.querySelectorAll(`.card[data-id="${CSS.escape(r.id)}"] .disc-peek`).forEach(el => { el.outerHTML = discHTML(r, "disc-peek"); });
+    document.querySelectorAll(`[data-stage="${CSS.escape(r.id)}"] .dt-disc`).forEach(el => { el.outerHTML = discHTML(r, "dt-disc").replace('class="', 'class="no-intro '); });
   },
   async removeRecord(r) {
     await IDB.del("records", r.id); if (r.coverBlobId) IDB.del("blobs", r.coverBlobId).catch(() => {});
@@ -763,7 +773,7 @@ async function backfillVinyl() {
     try {
       const rel = await discogsRelease(r0.discogsId);
       const r = S.records.find(x => x.id === r0.id);
-      if (r && !r.vinyl) await Store.saveRecord({ ...r, vinyl: rel.vinyl });
+      if (r && !r.vinyl) await Store.saveVinylQuiet({ ...r, vinyl: rel.vinyl });
     } catch (e) { if (e.message === "rate") await sleep(30000); }
     await sleep(1500);
   }
