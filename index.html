@@ -254,7 +254,7 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
         </button>
         <div class="big-opt">
           <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-          <div><b>Cover fotografieren</b><span>Für Platten ohne Barcode. Danach Künstler eintippen und suchen</span></div>
+          <div><b>Cover fotografieren</b><span>Die App erkennt die Platte am Cover und holt Pressung und Preis</span></div>
           <input type="file" id="in-cover" accept="image/*" capture="environment" aria-label="Cover fotografieren">
         </div>
         <button class="big-opt" id="btn-manual">
@@ -307,6 +307,8 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
         <div class="cover" id="ed-cover"></div>
         <div class="ed-cover-side">
           <span class="link-file">Eigenes Cover-Foto<input type="file" id="ed-photo" accept="image/*" capture="environment" aria-label="Cover fotografieren"></span>
+          <button type="button" class="btn small" id="ed-recognize">Cover erkennen</button>
+          <button type="button" class="btn small" id="ed-alts">Andere Pressung</button>
           <button type="button" class="btn small" id="ed-search">Bei Discogs suchen</button>
         </div>
       </div>
@@ -378,6 +380,18 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
         <p class="hint">Tipp: Stell unter <a href="https://www.discogs.com/settings/seller" target="_blank" rel="noopener">Discogs → Verkäufer-Einstellungen</a> die Währung auf Euro, dann kommen die Preisvorschläge in €.</p>
         <div class="btn-row"><button class="btn primary" id="s-save">Speichern und testen</button></div>
         <div id="s-status" hidden></div>
+      </div>
+      <div class="panel">
+        <h3>Cover-Erkennung (Google Gemini)</h3>
+        <p class="hint">Damit erkennt die App eine Platte allein am Cover-Foto. Der Schlüssel ist kostenlos und bleibt nur auf deinem Handy.</p>
+        <ol class="steps">
+          <li>Öffne <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> und melde dich mit deinem Google-Konto an.</li>
+          <li>Tippe auf <b>„API-Schlüssel erstellen“</b> („Create API key“).</li>
+          <li>Kopiere den Schlüssel und füge ihn hier ein.</li>
+        </ol>
+        <div class="field"><label for="s-gemini">Gemini-API-Schlüssel</label><input id="s-gemini" autocomplete="off" spellcheck="false" placeholder="Schlüssel einfügen (beginnt mit AIza…)"></div>
+        <div class="btn-row"><button class="btn primary" id="s-gemini-save">Speichern und testen</button></div>
+        <div id="s-gemini-status" hidden></div>
       </div>
       <div class="panel">
         <h3>Datensicherung</h3>
@@ -563,7 +577,110 @@ async function mbSearch(query) {
     thumb: "https://coverartarchive.org/release/" + x.id + "/front-250"
   }));
 }
+/* ---------------- Gemini cover recognition ---------------- */
+const gemKey = () => (S.settings.geminiKey || "").trim();
+async function geminiModels() {
+  const list = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+  return S.settings.geminiModel ? [S.settings.geminiModel, ...list] : list;
+}
+async function geminiDiscoverModel() {
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=" + encodeURIComponent(gemKey()));
+  if (r.status === 400 || r.status === 403) throw new Error("gemkey");
+  if (!r.ok) throw new Error("http");
+  const j = await r.json();
+  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent") && /flash/.test(m.name) && !/lite|image|tts|live|audio|thinking|exp/.test(m.name));
+  ok.sort((a, b) => b.name.localeCompare(a.name, "en", { numeric: true }));
+  return ok.length ? ok[0].name.replace(/^models\//, "") : null;
+}
+async function geminiCall(model, body) {
+  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(gemKey())}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+async function geminiIdentify(blob) {
+  const small = await shrink(blob, 1024, 0.85);
+  const b64 = (await toDataURL(small)).split(",")[1];
+  const prompt = `Du bist ein Experte für Schallplatten mit Discogs-Wissen. Das Foto zeigt das Cover (oder die Rückseite) einer Schallplatte.
+Bestimme Künstler und Album. Lies alles, was auf dem Bild steht (Label, Katalognummer, Barcode, Sticker).
+Antworte nur mit JSON in genau dieser Form:
+{"found":true,"artist":"","title":"","year":1977,"label":"","catno":"","country":"","genre":"Rock","barcode":"","confidence":"hoch"}
+"year" ist das Jahr der Erstveröffentlichung, falls die Pressung nicht erkennbar ist. "confidence" ist hoch, mittel oder niedrig.
+Wenn du das Album nicht erkennst: {"found":false} und fülle nur, was du lesen kannst.`;
+  const body = { contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: "application/json" } };
+  const candidates = await geminiModels(), tried = new Set();
+  let r = null, discovered = false;
+  while (candidates.length) {
+    const m = candidates.shift(); if (tried.has(m)) continue; tried.add(m);
+    r = await geminiCall(m, body);
+    if (r.ok) { if (S.settings.geminiModel !== m) Store.saveSettings({ ...S.settings, geminiModel: m }); break; }
+    if (r.status === 404) {
+      if (!candidates.length && !discovered) { discovered = true; const found = await geminiDiscoverModel().catch(() => null); if (found) candidates.push(found); }
+      continue;
+    }
+    break;
+  }
+  if (!r || !r.ok) {
+    if (r && (r.status === 400 || r.status === 403)) throw new Error("gemkey");
+    if (r && r.status === 429) throw new Error("gemrate");
+    throw new Error("gemhttp");
+  }
+  const j = await r.json();
+  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error("gemjson");
+  return JSON.parse(m[0]);
+}
+function normalize(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9äöüß]/g, ""); }
+function chooseBest(results, g) {
+  let best = results[0], bestScore = -1;
+  results.forEach((r, i) => {
+    let s = 10 - Math.min(i, 10) * 0.5;
+    if (g.catno && normalize(r.catno) === normalize(g.catno)) s += 20;
+    if (g.label && normalize(r.label).includes(normalize(g.label))) s += 4;
+    if (g.year && String(r.year) === String(g.year)) s += 5;
+    if (g.country && normalize(r.country) === normalize(g.country)) s += 2;
+    if (/LP|Album/.test(r.formatText || "")) s += 2;
+    if (/Unofficial|Promo|Test Pressing/i.test(r.formatText || "")) s -= 6;
+    if (s > bestScore) { bestScore = s; best = r; }
+  });
+  return best;
+}
+async function autoFromCover(d) {
+  if (!gemKey()) { setStatus("warn", "Für die automatische Cover-Erkennung brauchst du einen kostenlosen Gemini-Schlüssel (Profil → Einstellungen). Bis dahin: Künstler und Titel eintragen und „Bei Discogs suchen“ tippen."); return; }
+  setStatus("busy", "Erkenne das Cover …");
+  let g;
+  try { g = await geminiIdentify(d._blob); }
+  catch (e) { if (S.draft === d) setStatus("warn", lookupErr(e)); return; }
+  if (S.draft !== d) return;
+  if (!g || (!g.artist && !g.title)) { setStatus("warn", "Das Cover wurde nicht erkannt. Versuche ein schärferes Foto ohne Spiegelung oder trag Künstler und Titel selbst ein."); return; }
+  const take = (k, v) => { if (v != null && String(v).trim() !== "" && String(v) !== "0") d[k] = String(v).trim(); };
+  take("artist", g.artist); take("title", g.title); take("year", g.year); take("label", g.label); take("catno", g.catno); take("country", g.country); take("genre", g.genre);
+  if (g.barcode && /^\d{8,14}$/.test(String(g.barcode).replace(/\D/g, ""))) d.barcode = String(g.barcode).replace(/\D/g, "");
+  fillForm();
+  const unsure = g.found === false || g.confidence === "niedrig";
+  if (!token()) { setStatus(unsure ? "warn" : "ok", `Erkannt: ${d.artist} – ${d.title}${unsure ? " (unsicher, bitte prüfen)" : ""}. Verbinde Discogs, um Pressung und Preis automatisch zu bekommen.`); return; }
+  setStatus("busy", `Erkannt: ${d.artist} – ${d.title}. Suche die Pressung bei Discogs …`);
+  try {
+    let results = [];
+    if (d.barcode) results = await discogsSearch({ barcode: d.barcode });
+    if (!results.length && g.catno) results = await discogsSearch({ catno: g.catno, artist: d.artist });
+    if (!results.length) results = await discogsSearch({ artist: d.artist, release_title: d.title, format: "Vinyl" });
+    if (!results.length) results = await discogsSearch({ q: d.artist + " " + d.title });
+    if (S.draft !== d) return;
+    if (!results.length) { setStatus("warn", `Erkannt: ${d.artist} – ${d.title}, aber bei Discogs nichts gefunden. Trag den Wert selbst ein.`); return; }
+    d._alts = results;
+    const best = chooseBest(results, g);
+    await loadDiscogsInto(d, best, true);
+    if (S.draft !== d) return;
+    fillForm();
+    const pr = d.valueSource === "discogs" ? ` · ${fmtMoney(d.value, d.currency)}` : "";
+    setStatus(unsure ? "warn" : "ok", `${d.artist} – ${d.title}${pr}. Pressung: ${[d.label, d.catno, d.country, d.year].filter(Boolean).join(", ")}. ${results.length > 1 ? "Falsche Pressung? Tippe auf „Andere Pressung“." : ""}${unsure ? " Die Erkennung war unsicher, bitte prüfen." : ""}`);
+  } catch (e) { if (S.draft === d) setStatus("warn", lookupErr(e)); }
+}
+
 function lookupErr(e) {
+  if (e && e.message === "gemkey") return "Der Gemini-Schlüssel wurde nicht angenommen. Prüfe ihn unter Profil → Einstellungen.";
+  if (e && e.message === "gemrate") return "Das kostenlose Gemini-Limit ist für heute oder diese Minute erreicht. Versuche es etwas später noch einmal.";
+  if (e && (e.message === "gemhttp" || e.message === "gemjson")) return "Die Cover-Erkennung hat nicht geklappt. Versuche es noch einmal.";
   if (e && e.message === "token") return "Der Discogs-Token stimmt nicht. Prüfe ihn im Profil unter Einstellungen.";
   if (e && e.message === "rate") return "Discogs bremst gerade. Warte eine Minute und versuche es noch einmal.";
   if (!navigator.onLine) return "Keine Internetverbindung. Du kannst die Platte trotzdem selbst eintragen.";
@@ -587,14 +704,26 @@ async function runSearch({ barcode, text }) {
     if (!results.length) { resStatus("warn", barcode ? "Zu diesem Barcode wurde nichts gefunden. Trage die Platte selbst ein oder suche nach Künstler und Titel." : "Nichts gefunden. Versuche andere Suchwörter."); return; }
     resStatus(results.length === 1 ? null : "ok", results.length === 1 ? null : `${results.length} Treffer. Wähle deine Pressung (Label, Land und Jahr helfen).`);
     if (!token()) resStatus("warn", "Ohne Discogs-Token gibt es keine Preise. Verbinde Discogs im Profil unter Einstellungen.");
-    list.innerHTML = results.map((r, i) => `
-      <button class="res" data-i="${i}">${coverHTML({ ...r, coverUrl: r.thumb })}
-        <span class="tx"><b>${esc(r.artist)} – ${esc(r.title)}</b>
-        <span>${esc([r.label, r.catno].filter(Boolean).join(" · "))}</span>
-        <span>${esc([r.country, r.year, r.formatText].filter(Boolean).join(" · "))}</span></span></button>`).join("");
-    list.querySelectorAll(".res").forEach(b => b.onclick = () => pickResult(results[+b.dataset.i]));
+    renderResults(results);
     if (results.length === 1 && barcode) pickResult(results[0]);
   } catch (e) { resStatus("warn", lookupErr(e)); }
+}
+function renderResults(results) {
+  const list = $("#res-list");
+  list.innerHTML = results.map((r, i) => `
+    <button class="res" data-i="${i}">${coverHTML({ ...r, coverUrl: r.thumb })}
+      <span class="tx"><b>${esc(r.artist)} – ${esc(r.title)}</b>
+      <span>${esc([r.label, r.catno].filter(Boolean).join(" · "))}</span>
+      <span>${esc([r.country, r.year, r.formatText].filter(Boolean).join(" · "))}</span></span></button>`).join("");
+  list.querySelectorAll(".res").forEach(b => b.onclick = () => pickResult(results[+b.dataset.i]));
+}
+function showAlts() {
+  readForm(); const d = S.draft; if (!d || !d._alts) return;
+  S.draftBase = d; S.pending = { barcode: "" };
+  $("#res-title").textContent = "Welche Pressung?";
+  resStatus("ok", "Vergleiche Label, Katalognummer (steht auf dem Rücken oder Etikett), Land und Jahr.");
+  renderResults(d._alts);
+  openSheet("#sheet-results", { replace: true });
 }
 function resStatus(kind, text) {
   const el = $("#res-status");
@@ -608,18 +737,31 @@ async function pickResult(r) {
   const d = { ...base, artist: r.artist, title: r.title, year: String(r.year || ""), label: r.label, catno: r.catno, country: r.country, barcode: r.barcode || S.pending?.barcode || base.barcode || "" };
   if (!d._preview && !d.coverBlobId) d.coverUrl = r.thumb;
   if (r.source === "mb") { d.mbid = r.mbid; openEditor(d, { replace: true }); return; }
-  d.discogsId = r.discogsId; d.genre = r.genre;
   openEditor(d, { replace: true });
   setStatus("busy", "Lade Details und Preis von Discogs …");
   try {
-    const rel = await discogsRelease(r.discogsId);
+    await loadDiscogsInto(d, r, false);
     if (S.draft !== d) return;
-    Object.assign(d, { artist: rel.artist, title: rel.title, year: rel.year || d.year, label: rel.label, catno: rel.catno, genre: rel.genre, country: rel.country, format: rel.format, barcode: d.barcode || rel.barcode });
-    if (!d._preview && !d.coverBlobId && rel.coverUrl) d.coverUrl = rel.coverUrl;
-    d.numForSale = rel.numForSale;
     fillForm();
-    await fetchPrice(d, true);
-  } catch (e) { setStatus("warn", lookupErr(e)); }
+    setStatus(d.valueSource === "discogs" ? "ok" : "warn", d.valueSource === "discogs"
+      ? `${d.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag für " + (d.list === "wishlist" ? "VG+" : d.condition)}: ${fmtMoney(d.value, d.currency)}`
+      : "Discogs hat für diese Pressung gerade keinen Preis. Trag einen eigenen Wert ein.");
+  } catch (e) { if (S.draft === d) setStatus("warn", lookupErr(e)); }
+}
+async function loadDiscogsInto(d, hit) {
+  d.discogsId = hit.discogsId; if (hit.genre) d.genre = hit.genre;
+  if (d.valueSource === "discogs") { d.value = null; d.valueSource = null; }
+  const rel = await discogsRelease(hit.discogsId);
+  if (S.draft !== d) return;
+  Object.assign(d, { artist: rel.artist || d.artist, title: rel.title || d.title, year: rel.year || d.year, label: rel.label, catno: rel.catno, genre: rel.genre || d.genre, country: rel.country, format: rel.format, barcode: rel.barcode || d.barcode });
+  if (rel.coverUrl) d.coverUrl = rel.coverUrl;
+  d.numForSale = rel.numForSale;
+  fillForm();
+  if (!token()) return;
+  const p = await discogsPrice(d.discogsId, d.list === "wishlist" ? "VG+" : (d.condition || "VG+")).catch(e => { if (e.message === "token") throw e; return null; });
+  if (S.draft !== d || !p) return;
+  Object.assign(d, { value: p.value, currency: p.currency, valueSource: "discogs", priceKind: p.kind, valueDate: new Date().toISOString().slice(0, 10) });
+  if (p.numForSale != null) d.numForSale = p.numForSale;
 }
 async function fetchPrice(d, quiet) {
   if (!d.discogsId) { setStatus("warn", "Diese Platte ist noch nicht mit Discogs verknüpft. Tippe auf „Bei Discogs suchen“."); return; }
@@ -710,6 +852,8 @@ function fillForm() {
   $("#ed-range").textContent = d.valueSource === "discogs" && d.valueDate
     ? `${d.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag"}, Stand ${new Date(d.valueDate).toLocaleDateString("de-DE")}.` : "";
   $("#ed-price").hidden = !d.discogsId;
+  $("#ed-alts").hidden = !(d._alts && d._alts.length > 1);
+  $("#ed-recognize").hidden = !d._blob;
 }
 function readForm() {
   const d = S.draft;
@@ -752,9 +896,13 @@ $("#ed-photo").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   readForm();
   const blob = await shrink(f, 1400, 0.88);
-  Object.assign(S.draft, { _blob: blob, _preview: URL.createObjectURL(blob) });
+  const d = S.draft;
+  Object.assign(d, { _blob: blob, _preview: URL.createObjectURL(blob) });
   fillForm();
+  if (!d.artist && !d.title) autoFromCover(d);
 });
+$("#ed-recognize").onclick = () => { readForm(); if (S.draft && S.draft._blob) autoFromCover(S.draft); };
+$("#ed-alts").onclick = showAlts;
 $("#ed-search").onclick = () => {
   readForm(); const d = S.draft;
   const text = [d.artist, d.title].filter(Boolean).join(" ");
@@ -774,9 +922,9 @@ $("#btn-manual").onclick = () => openEditor(newDraft(), { replace: true });
 $("#in-cover").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   let blob; try { blob = await shrink(f, 1400, 0.88); } catch { toast("Das Foto konnte nicht geöffnet werden."); return; }
-  openEditor(newDraft({ _blob: blob, _preview: URL.createObjectURL(blob) }), { replace: true });
-  setStatus("ok", "Foto ist drin. Trag Künstler und Titel ein und tippe auf „Bei Discogs suchen“, um Daten und Preis zu holen.");
-  setTimeout(() => $("#f-artist").focus(), 300);
+  const d = newDraft({ _blob: blob, _preview: URL.createObjectURL(blob) });
+  openEditor(d, { replace: true });
+  autoFromCover(d);
 });
 function doQuery() {
   const v = $("#in-query").value.trim(); if (!v) return;
@@ -846,7 +994,19 @@ async function onAvatar(file) {
   try { const old = S.profile.avatarBlobId; const id = await saveBlob(await shrink(file, 400, 0.85)); await Store.saveProfile({ ...S.profile, avatarBlobId: id }); if (old) IDB.del("blobs", old).catch(() => {}); toast("Profilbild gespeichert"); }
   catch { toast("Profilbild konnte nicht gespeichert werden."); }
 }
-function openSettings() { $("#s-token").value = S.settings.token || ""; $("#s-status").hidden = true; $("#s-refresh-status").textContent = ""; openSheet("#sheet-settings"); }
+$("#s-gemini-save").onclick = async () => {
+  const k = $("#s-gemini").value.trim();
+  await Store.saveSettings({ ...S.settings, geminiKey: k, geminiModel: "" });
+  const st = $("#s-gemini-status"); st.hidden = false;
+  if (!k) { st.className = "status"; st.textContent = "Schlüssel entfernt. Cover werden nicht mehr automatisch erkannt."; render(); return; }
+  st.className = "status"; st.innerHTML = '<span class="spinner"></span><span>Teste Schlüssel …</span>';
+  try {
+    const m = await geminiDiscoverModel();
+    st.className = "status ok"; st.textContent = m ? "Schlüssel funktioniert. Cover-Fotos werden jetzt automatisch erkannt." : "Schlüssel angenommen, aber kein passendes Modell gefunden.";
+  } catch (e) { st.className = "status warn"; st.textContent = e.message === "gemkey" ? "Der Schlüssel wurde nicht angenommen. Kopiere ihn noch einmal komplett." : lookupErr(e); }
+  render();
+};
+function openSettings() { $("#s-gemini").value = S.settings.geminiKey || ""; $("#s-gemini-status").hidden = true; $("#s-token").value = S.settings.token || ""; $("#s-status").hidden = true; $("#s-refresh-status").textContent = ""; openSheet("#sheet-settings"); }
 $("#s-save").onclick = async () => {
   const t = $("#s-token").value.trim();
   await Store.saveSettings({ ...S.settings, token: t });
@@ -975,7 +1135,7 @@ function renderProfile() {
     <div class="prof-head">
       <label class="avatar" title="Profilbild ändern">${initials}${avatarUrl ? `<img src="${esc(avatarUrl)}" alt="">` : ""}<input type="file" id="pf-avatar" accept="image/*" aria-label="Profilbild ändern"></label>
       <div class="prof-text"><h2>${esc(p.name || "Dein Profil")}</h2>${sub ? `<p>${sub}</p>` : `<p>Tippe auf „Bearbeiten“, um dein Profil auszufüllen.</p>`}${p.bio ? `<p style="color:var(--ink)">${esc(p.bio)}</p>` : ""}
-      <p><span class="pill ${token() ? "on" : ""}">${token() ? "Discogs verbunden" : "Discogs nicht verbunden"}</span></p></div>
+      <p style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill ${token() ? "on" : ""}">${token() ? "Discogs verbunden" : "Discogs nicht verbunden"}</span><span class="pill ${gemKey() ? "on" : ""}">${gemKey() ? "Cover-Erkennung an" : "Cover-Erkennung aus"}</span></p></div>
     </div>
     <div class="sheet-body">
       <div class="stats">

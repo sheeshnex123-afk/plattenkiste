@@ -1,5 +1,5 @@
 // Plattenkiste service worker: keeps the app usable offline.
-const CACHE = "plattenkiste-v1";
+const CACHE = "plattenkiste-v2";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 
 self.addEventListener("install", e => {
@@ -15,7 +15,7 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   // APIs always go to the network.
-  if (/api\.discogs\.com|musicbrainz\.org/.test(url.host)) return;
+  if (/api\.discogs\.com|musicbrainz\.org|generativelanguage\.googleapis\.com/.test(url.host)) return;
 
   // App page: network first so updates arrive, cache as fallback.
   if (req.mode === "navigate" || (url.origin === location.origin && /index\.html$|\/$/.test(url.pathname))) {
