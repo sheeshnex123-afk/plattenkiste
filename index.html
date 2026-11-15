@@ -146,6 +146,12 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
 .ed-cover { display: flex; gap: 14px; align-items: center; }
 .ed-cover .cover { width: 120px; flex: none; }
 .ed-cover-side { display: grid; gap: 8px; min-width: 0; }
+.pick { display: grid; gap: 8px; }
+.pick-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+.pick-row button { position: relative; flex: none; width: 84px; aspect-ratio: 1; border-radius: 8px; border: 3px solid transparent; padding: 0; overflow: hidden; background: var(--vinyl); scroll-snap-align: start; }
+.pick-row button[aria-pressed="true"] { border-color: var(--accent); }
+.pick-row img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pick-row .tag { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; font-weight: 700; padding: 2px 4px; background: rgba(0,0,0,.65); color: #fff; text-align: center; }
 .status { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
 .status.ok { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
 .status.warn { background: color-mix(in srgb, var(--gold) 16%, var(--surface)); }
@@ -312,6 +318,10 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
           <button type="button" class="btn small" id="ed-search">Bei Discogs suchen</button>
         </div>
       </div>
+      <div class="pick" id="ed-pick" hidden>
+        <div class="eyebrow">Cover auswählen</div>
+        <div class="pick-row" id="ed-pick-row"></div>
+      </div>
       <div id="ed-status" hidden></div>
       <div class="fgrid">
         <div class="field full"><label for="f-artist">Künstler</label><input id="f-artist"></div>
@@ -402,6 +412,12 @@ h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balan
         </div>
       </div>
       <div class="panel">
+        <h3>Offizielle Cover</h3>
+        <p class="hint">Ersetzt bei allen Platten mit Discogs-Verknüpfung dein Foto durch das offizielle Cover. Deine Fotos bleiben gespeichert, du kannst sie in jeder Platte unter „Bearbeiten“ zurückholen.</p>
+        <button class="btn" id="s-covers">Offizielle Cover für alle Platten</button>
+        <div id="s-covers-status" class="hint"></div>
+      </div>
+      <div class="panel">
         <h3>Preise aktualisieren</h3>
         <p class="hint">Holt für alle Platten mit Discogs-Verknüpfung den aktuellen Preis. Dauert etwa eine Sekunde pro Platte.</p>
         <button class="btn" id="s-refresh">Alle Preise aktualisieren</button>
@@ -486,7 +502,12 @@ async function shrink(blob, max = 900, q = 0.84) {
   return await new Promise(r => c.toBlob(r, "image/jpeg", q));
 }
 const toDataURL = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
-const coverURL = r => r ? (r._preview || (r.coverBlobId && blobURLs.get(r.coverBlobId)) || r.coverUrl || null) : null;
+const ownURL = r => r._preview || (r.coverBlobId && blobURLs.get(r.coverBlobId)) || null;
+const coverURL = r => {
+  if (!r) return null;
+  if (r.coverChoice === "url" && r.coverUrl) return r.coverUrl;
+  return ownURL(r) || r.coverUrl || null;
+};
 function coverHTML(r, cls = "", extra = "") {
   const url = coverURL(r);
   const h = hueOf((r.artist || "") + (r.title || ""));
@@ -538,14 +559,16 @@ async function discogsSearch(params) {
 }
 async function discogsRelease(id) {
   const r = await discogs("/releases/" + id, { curr_abbr: "EUR" });
-  const img = (r.images || []).find(i => i.type === "primary") || (r.images || [])[0];
+  const imgs = (r.images || []).slice().sort((a, b) => (a.type === "primary" ? 0 : 1) - (b.type === "primary" ? 0 : 1));
+  const img = imgs[0];
   const bc = (r.identifiers || []).find(i => i.type === "Barcode");
   return {
     discogsId: r.id, artist: cleanArtist((r.artists || []).map(a => cleanArtist(a.anv || a.name)).join(" & ") || r.artists_sort),
     title: r.title, year: r.year ? String(r.year) : "", label: (r.labels || [])[0]?.name || "", catno: (r.labels || [])[0]?.catno || "",
     genre: [(r.genres || [])[0], (r.styles || [])[0]].filter(Boolean).join(" / "), country: r.country || "",
     format: mapFormat(r.formats), coverUrl: img ? (img.uri || img.uri150) : (r.thumb || ""),
-    barcode: bc ? String(bc.value).replace(/\D/g, "") : "", lowest: r.lowest_price ?? null, numForSale: r.num_for_sale ?? null
+    barcode: bc ? String(bc.value).replace(/\D/g, "") : "", lowest: r.lowest_price ?? null, numForSale: r.num_for_sale ?? null,
+    images: imgs.map(i => i.uri || i.uri150).filter(Boolean).slice(0, 12)
   };
 }
 async function discogsPrice(id, condition) {
@@ -673,7 +696,7 @@ async function autoFromCover(d) {
     if (S.draft !== d) return;
     fillForm();
     const pr = d.valueSource === "discogs" ? ` · ${fmtMoney(d.value, d.currency)}` : "";
-    setStatus(unsure ? "warn" : "ok", `${d.artist} – ${d.title}${pr}. Pressung: ${[d.label, d.catno, d.country, d.year].filter(Boolean).join(", ")}. ${results.length > 1 ? "Falsche Pressung? Tippe auf „Andere Pressung“." : ""}${unsure ? " Die Erkennung war unsicher, bitte prüfen." : ""}`);
+    setStatus(unsure ? "warn" : "ok", `${d.artist} – ${d.title}${pr}. Pressung: ${[d.label, d.catno, d.country, d.year].filter(Boolean).join(", ")}. ${d.coverChoice === "url" ? "Das offizielle Cover ist gewählt, oben kannst du ein anderes Bild oder dein Foto nehmen. " : ""}${results.length > 1 ? "Falsche Pressung? Tippe auf „Andere Pressung“." : ""}${unsure ? " Die Erkennung war unsicher, bitte prüfen." : ""}`);
   } catch (e) { if (S.draft === d) setStatus("warn", lookupErr(e)); }
 }
 
@@ -754,7 +777,8 @@ async function loadDiscogsInto(d, hit) {
   const rel = await discogsRelease(hit.discogsId);
   if (S.draft !== d) return;
   Object.assign(d, { artist: rel.artist || d.artist, title: rel.title || d.title, year: rel.year || d.year, label: rel.label, catno: rel.catno, genre: rel.genre || d.genre, country: rel.country, format: rel.format, barcode: rel.barcode || d.barcode });
-  if (rel.coverUrl) d.coverUrl = rel.coverUrl;
+  d._images = rel.images;
+  if (rel.coverUrl) { d.coverUrl = rel.coverUrl; d.coverChoice = "url"; }
   d.numForSale = rel.numForSale;
   fillForm();
   if (!token()) return;
@@ -854,6 +878,39 @@ function fillForm() {
   $("#ed-price").hidden = !d.discogsId;
   $("#ed-alts").hidden = !(d._alts && d._alts.length > 1);
   $("#ed-recognize").hidden = !d._blob;
+  renderPicker(d);
+}
+function renderPicker(d) {
+  const opts = [];
+  const own = ownURL(d);
+  if (own) opts.push({ kind: "own", url: own });
+  const seen = new Set();
+  for (const u of [...(d._images || []), d.coverUrl, ...((d._alts || []).map(a => a.thumb))]) {
+    if (!u || seen.has(u) || /spacer\.gif/.test(u)) continue;
+    seen.add(u); opts.push({ kind: "url", url: u });
+    if (opts.length >= 14) break;
+  }
+  const box = $("#ed-pick");
+  if (opts.length < 2) { box.hidden = true; return; }
+  box.hidden = false;
+  const current = coverURL(d);
+  $("#ed-pick-row").innerHTML = opts.map((o, i) => `<button type="button" data-i="${i}" aria-pressed="${o.url === current}" aria-label="${o.kind === "own" ? "Dein Foto" : "Cover-Bild " + i}">
+    <img src="${esc(o.url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.hidden=true">${o.kind === "own" ? '<span class="tag">Dein Foto</span>' : ""}</button>`).join("");
+  $("#ed-pick-row").querySelectorAll("button").forEach(b => b.onclick = () => {
+    const o = opts[+b.dataset.i];
+    if (o.kind === "own") d.coverChoice = "own"; else { d.coverChoice = "url"; d.coverUrl = o.url; }
+    readForm(); fillForm();
+  });
+}
+async function loadImagesFor(d) {
+  if (!d.discogsId || d._images) return;
+  try {
+    const rel = await discogsRelease(d.discogsId);
+    if (S.draft !== d) return;
+    d._images = rel.images;
+    if (!d.coverUrl && rel.coverUrl) d.coverUrl = rel.coverUrl;
+    readForm(); fillForm();
+  } catch {}
 }
 function readForm() {
   const d = S.draft;
@@ -873,6 +930,7 @@ function openEditor(draft, opts = {}) {
   $("#ed-title").textContent = draft._new ? (draft.list === "wishlist" ? "Neuer Wunsch" : "Neue Platte") : "Platte bearbeiten";
   setStatus(null); fillForm();
   openSheet("#sheet-edit", opts);
+  if (!draft._new) loadImagesFor(draft);
 }
 function newDraft(extra = {}) { return { id: uid(), _new: true, list: S.addTarget, format: "LP", condition: "VG+", currency: "EUR", addedAt: new Date().toISOString(), ...extra }; }
 
@@ -882,7 +940,7 @@ $("#ed-form").addEventListener("submit", async e => {
   if (!d.artist && !d.title) { toast("Bitte mindestens Künstler oder Titel eintragen."); return; }
   const btn = $("#ed-save"); btn.disabled = true; btn.textContent = "Speichere …";
   try {
-    if (d._blob) { const old = d.coverBlobId; d.coverBlobId = await saveBlob(await shrink(d._blob, 900, 0.84)); if (old) IDB.del("blobs", old).catch(() => {}); }
+    if (d._blob && d.coverChoice !== "url") { const old = d.coverBlobId; d.coverBlobId = await saveBlob(await shrink(d._blob, 900, 0.84)); if (old) IDB.del("blobs", old).catch(() => {}); }
     const wasNew = d._new;
     const rec = { ...d, updatedAt: new Date().toISOString() };
     await Store.saveRecord(rec);
@@ -897,7 +955,7 @@ $("#ed-photo").addEventListener("change", async e => {
   readForm();
   const blob = await shrink(f, 1400, 0.88);
   const d = S.draft;
-  Object.assign(d, { _blob: blob, _preview: URL.createObjectURL(blob) });
+  Object.assign(d, { _blob: blob, _preview: URL.createObjectURL(blob), coverChoice: "own" });
   fillForm();
   if (!d.artist && !d.title) autoFromCover(d);
 });
@@ -1038,6 +1096,21 @@ $("#s-import").addEventListener("change", async e => {
     await loadAll(); toast(`${data.records.length} Einträge geladen`);
   } catch { toast("Diese Datei ist keine Plattenkiste-Sicherung."); }
 });
+$("#s-covers").onclick = async () => {
+  const st = $("#s-covers-status"), btn = $("#s-covers");
+  const list = S.records.filter(r => r.discogsId && r.coverChoice !== "url");
+  if (!list.length) { st.textContent = "Alle verknüpften Platten haben schon das offizielle Cover."; return; }
+  btn.disabled = true; let ok = 0;
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i]; st.textContent = `${i + 1} / ${list.length}: ${r.artist} – ${r.title}`;
+    try {
+      let url = r.coverUrl;
+      if (!url) { const rel = await discogsRelease(r.discogsId); url = rel.coverUrl; }
+      if (url) { await Store.saveRecord({ ...r, coverUrl: url, coverChoice: "url" }); ok++; }
+    } catch (e) { if (e.message === "rate") await sleep(30000); }
+  }
+  btn.disabled = false; st.textContent = `Fertig: ${ok} von ${list.length} Platten haben jetzt das offizielle Cover.`;
+};
 $("#s-refresh").onclick = async () => {
   const st = $("#s-refresh-status"), btn = $("#s-refresh");
   if (!token()) { st.textContent = "Verbinde zuerst Discogs (oben)."; return; }
