@@ -517,10 +517,17 @@ function coverHTML(r, cls = "", extra = "") {
 
 /* ---------------- Discogs / MusicBrainz ---------------- */
 const token = () => (S.settings.token || "").trim();
-let lastCall = 0;
+// Discogs allows 60 requests/minute with a token (25 without): only wait when close to that limit.
+const callTimes = [];
 async function discogs(path, params = {}) {
-  const wait = 1100 - (Date.now() - lastCall); if (wait > 0) await sleep(wait);
-  lastCall = Date.now();
+  const limit = token() ? 55 : 22;
+  for (;;) {
+    const now = Date.now();
+    while (callTimes.length && now - callTimes[0] > 60000) callTimes.shift();
+    if (callTimes.length < limit) break;
+    await sleep(60000 - (now - callTimes[0]) + 50);
+  }
+  callTimes.push(Date.now());
   const u = new URL("https://api.discogs.com" + path);
   for (const [k, v] of Object.entries(params)) if (v != null && v !== "") u.searchParams.set(k, v);
   if (token()) u.searchParams.set("token", token());
@@ -603,7 +610,7 @@ async function mbSearch(query) {
 /* ---------------- Gemini cover recognition ---------------- */
 const gemKey = () => (S.settings.geminiKey || "").trim();
 async function geminiModels() {
-  const list = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"];
+  const list = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"];
   return S.settings.geminiModel ? [S.settings.geminiModel, ...list] : list;
 }
 async function geminiDiscoverModel() {
@@ -615,12 +622,22 @@ async function geminiDiscoverModel() {
   ok.sort((a, b) => b.name.localeCompare(a.name, "en", { numeric: true }));
   return ok.length ? ok[0].name.replace(/^models\//, "") : null;
 }
-async function geminiCall(model, body) {
-  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(gemKey())}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+// Thinking makes Gemini much slower and isn't needed to recognise a cover.
+function thinkingFor(model) {
+  if (/2\.0/.test(model)) return null;
+  if (/2\.5/.test(model)) return { thinkingBudget: 0 };
+  return { thinkingLevel: "minimal" };
+}
+async function geminiCall(model, body, ms = 25000) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(gemKey())}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
+  } catch (e) { if (e.name === "AbortError") return { ok: false, status: 408 }; throw e; }
+  finally { clearTimeout(t); }
 }
 async function geminiIdentify(blob) {
-  const small = await shrink(blob, 1024, 0.85);
+  const small = await shrink(blob, 800, 0.8);
   const b64 = (await toDataURL(small)).split(",")[1];
   const prompt = `Du bist ein Experte für Schallplatten mit Discogs-Wissen. Das Foto zeigt das Cover (oder die Rückseite) einer Schallplatte.
 Bestimme Künstler und Album. Lies alles, was auf dem Bild steht (Label, Katalognummer, Barcode, Sticker).
@@ -628,21 +645,27 @@ Antworte nur mit JSON in genau dieser Form:
 {"found":true,"artist":"","title":"","year":1977,"label":"","catno":"","country":"","genre":"Rock","barcode":"","confidence":"hoch"}
 "year" ist das Jahr der Erstveröffentlichung, falls die Pressung nicht erkennbar ist. "confidence" ist hoch, mittel oder niedrig.
 Wenn du das Album nicht erkennst: {"found":false} und fülle nur, was du lesen kannst.`;
-  const body = { contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: prompt }] }], generationConfig: { temperature: 0.2, responseMimeType: "application/json" } };
+  const makeBody = thinking => ({ contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: prompt }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens: 1024, ...(thinking ? { thinkingConfig: thinking } : {}) } });
   const candidates = await geminiModels(), tried = new Set();
-  let r = null, discovered = false;
+  let r = null, discovered = false, keyBad = false;
   while (candidates.length) {
     const m = candidates.shift(); if (tried.has(m)) continue; tried.add(m);
-    r = await geminiCall(m, body);
-    if (r.ok) { if (S.settings.geminiModel !== m) Store.saveSettings({ ...S.settings, geminiModel: m }); break; }
-    if (r.status === 404) {
-      if (!candidates.length && !discovered) { discovered = true; const found = await geminiDiscoverModel().catch(() => null); if (found) candidates.push(found); }
-      continue;
+    const think = S.settings.geminiNoThinkCfg === m ? null : thinkingFor(m);
+    r = await geminiCall(m, makeBody(think));
+    if (!r.ok && r.status === 400) {
+      const msg = await r.clone().text().catch(() => "");
+      if (/API.?key/i.test(msg)) { keyBad = true; break; }
+      if (think) { r = await geminiCall(m, makeBody(null)); if (r.ok) Store.saveSettings({ ...S.settings, geminiNoThinkCfg: m }); }
     }
-    break;
+    if (r.ok) { if (S.settings.geminiModel !== m) Store.saveSettings({ ...S.settings, geminiModel: m }); break; }
+    if (r.status === 403) { keyBad = true; break; }
+    if (r.status === 429) break;
+    // Model missing, too slow or overloaded: try the next one.
+    if (!candidates.length && !discovered && r.status === 404) { discovered = true; const found = await geminiDiscoverModel().catch(() => null); if (found) candidates.push(found); }
   }
   if (!r || !r.ok) {
-    if (r && (r.status === 400 || r.status === 403)) throw new Error("gemkey");
+    if (keyBad) throw new Error("gemkey");
     if (r && r.status === 429) throw new Error("gemrate");
     throw new Error("gemhttp");
   }
@@ -683,10 +706,14 @@ async function autoFromCover(d) {
   if (!token()) { setStatus(unsure ? "warn" : "ok", `Erkannt: ${d.artist} – ${d.title}${unsure ? " (unsicher, bitte prüfen)" : ""}. Verbinde Discogs, um Pressung und Preis automatisch zu bekommen.`); return; }
   setStatus("busy", `Erkannt: ${d.artist} – ${d.title}. Suche die Pressung bei Discogs …`);
   try {
-    let results = [];
-    if (d.barcode) results = await discogsSearch({ barcode: d.barcode });
-    if (!results.length && g.catno) results = await discogsSearch({ catno: g.catno, artist: d.artist });
-    if (!results.length) results = await discogsSearch({ artist: d.artist, release_title: d.title, format: "Vinyl" });
+    // Run the searches at the same time and take the most precise one that found something.
+    const none = Promise.resolve([]);
+    const [byBarcode, byCatno, byTitle] = await Promise.all([
+      d.barcode ? discogsSearch({ barcode: d.barcode }).catch(() => []) : none,
+      g.catno ? discogsSearch({ catno: g.catno, artist: d.artist }).catch(() => []) : none,
+      discogsSearch({ artist: d.artist, release_title: d.title, format: "Vinyl" })
+    ]);
+    let results = byBarcode.length ? byBarcode : byCatno.length ? byCatno : byTitle;
     if (!results.length) results = await discogsSearch({ q: d.artist + " " + d.title });
     if (S.draft !== d) return;
     if (!results.length) { setStatus("warn", `Erkannt: ${d.artist} – ${d.title}, aber bei Discogs nichts gefunden. Trag den Wert selbst ein.`); return; }
@@ -774,6 +801,8 @@ async function pickResult(r) {
 async function loadDiscogsInto(d, hit) {
   d.discogsId = hit.discogsId; if (hit.genre) d.genre = hit.genre;
   if (d.valueSource === "discogs") { d.value = null; d.valueSource = null; }
+  // Details and price load at the same time.
+  const priceP = token() ? discogsPrice(hit.discogsId, d.list === "wishlist" ? "VG+" : (d.condition || "VG+")).catch(e => { if (e.message === "token") throw e; return null; }) : Promise.resolve(null);
   const rel = await discogsRelease(hit.discogsId);
   if (S.draft !== d) return;
   Object.assign(d, { artist: rel.artist || d.artist, title: rel.title || d.title, year: rel.year || d.year, label: rel.label, catno: rel.catno, genre: rel.genre || d.genre, country: rel.country, format: rel.format, barcode: rel.barcode || d.barcode });
@@ -781,8 +810,7 @@ async function loadDiscogsInto(d, hit) {
   if (rel.coverUrl) { d.coverUrl = rel.coverUrl; d.coverChoice = "url"; }
   d.numForSale = rel.numForSale;
   fillForm();
-  if (!token()) return;
-  const p = await discogsPrice(d.discogsId, d.list === "wishlist" ? "VG+" : (d.condition || "VG+")).catch(e => { if (e.message === "token") throw e; return null; });
+  const p = await priceP;
   if (S.draft !== d || !p) return;
   Object.assign(d, { value: p.value, currency: p.currency, valueSource: "discogs", priceKind: p.kind, valueDate: new Date().toISOString().slice(0, 10) });
   if (p.numForSale != null) d.numForSale = p.numForSale;
@@ -919,11 +947,18 @@ function readForm() {
   const changed = v == null ? d.value != null : (d.value == null || Math.abs(v - d.value) > 0.001);
   if (changed) { d.value = v; d.valueSource = v == null ? null : "manuell"; d.priceKind = null; }
 }
+let busySince = 0, busyTimer = 0;
 function setStatus(kind, text) {
   const el = $("#ed-status");
+  if (kind !== "busy") { clearInterval(busyTimer); busyTimer = 0; busySince = 0; }
   if (!kind) { el.hidden = true; return; }
   el.hidden = false; el.className = "status " + (kind === "busy" ? "" : kind);
-  el.innerHTML = (kind === "busy" ? '<span class="spinner" aria-hidden="true"></span>' : "") + `<span>${esc(text)}</span>`;
+  el.innerHTML = (kind === "busy" ? '<span class="spinner" aria-hidden="true"></span>' : "") + `<span>${esc(text)}</span>` + (kind === "busy" ? ' <span class="mono muted" id="ed-secs"></span>' : "");
+  if (kind === "busy") {
+    if (!busySince) busySince = Date.now();
+    const tick = () => { const s = $("#ed-secs"); if (s) s.textContent = Math.round((Date.now() - busySince) / 1000) + " s"; };
+    tick(); if (!busyTimer) busyTimer = setInterval(tick, 1000);
+  }
 }
 function openEditor(draft, opts = {}) {
   S.draft = draft;
