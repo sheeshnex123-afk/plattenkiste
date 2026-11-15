@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plattenkiste</title>
+<meta name="theme-color" content="#0b1211" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#edf1f0" media="(prefers-color-scheme: light)">
+<meta name="description" content="Deine Schallplattensammlung: Barcode scannen, Discogs-Preise, Wunschliste und Profil.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-column phone app, sticky header, cover grid, fixed bottom tab bar, full-screen sheets */
+:root {
+  --bg: #edf1f0; --surface: #ffffff; --surface-2: #e3e9e7; --ink: #142120; --muted: #5a6b68; --line: #d2dbd8;
+  --accent: #0d7a70; --accent-ink: #ffffff; --gold: #9a6514; --danger: #b3261e; --vinyl: #121515; --groove: #262b2b;
+  --shadow: 0 1px 2px rgba(20,33,32,.08), 0 6px 18px rgba(20,33,32,.08);
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --nav-h: 64px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1211; --surface: #141e1d; --surface-2: #1b2826; --ink: #e5eeec; --muted: #8ea19d; --line: #243331;
+    --accent: #3fc2b2; --accent-ink: #062320; --gold: #e2b04f; --danger: #f2877c; --vinyl: #050808; --groove: #1a2020;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px);
+  -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain;
+}
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+h1, h2, h3 { font-family: var(--f-display); font-stretch: 118%; text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; }
+.top-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.brand { font-family: var(--f-display); font-stretch: 125%; font-weight: 800; font-size: 22px; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
+.brand-disc { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle, var(--accent) 0 22%, var(--vinyl) 24% 100%); box-shadow: inset 0 0 0 3px var(--groove); }
+.sum { text-align: right; }
+.sum .val { font-family: var(--f-mono); font-weight: 600; font-size: 20px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.tools { display: flex; gap: 8px; margin-top: 12px; }
+.search { flex: 1; min-width: 0; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; }
+.sort { height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 8px; max-width: 42%; }
+.note { margin-top: 10px; font-size: 13px; color: var(--muted); background: var(--surface-2); border-radius: 10px; padding: 8px 12px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 12px; padding-block: 8px 0; }
+.card { background: none; border: 0; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cover { position: relative; width: 100%; aspect-ratio: 1; max-width: 100%; border-radius: 6px; overflow: hidden; box-shadow: var(--shadow); background: var(--vinyl); }
+.cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ph { position: absolute; inset: 0; display: grid; place-items: center; background: repeating-radial-gradient(circle at 50% 50%, var(--vinyl) 0 2px, var(--groove) 2px 3px); }
+.ph-label { width: 38%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; text-align: center; font-family: var(--f-display); font-stretch: 120%; font-weight: 800; font-size: 13px; color: #fff; padding: 4px; line-height: 1.05; }
+.card .t { font-weight: 650; font-size: 14px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .a { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -4px; }
+.card .meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-family: var(--f-mono); font-size: 12px; }
+.card .meta .p { color: var(--gold); font-weight: 600; }
+.badge { font-family: var(--f-mono); font-size: 10.5px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+
+.empty { text-align: center; padding: 48px 12px; display: grid; justify-items: center; gap: 12px; color: var(--muted); }
+.empty .disc { width: 120px; height: 120px; border-radius: 50%; background: repeating-radial-gradient(circle, var(--vinyl) 0 2px, var(--groove) 2px 3px); position: relative; animation: spin 6s linear infinite; }
+.empty .disc::after { content: ""; position: absolute; inset: 34%; border-radius: 50%; background: var(--accent); }
+.empty h3 { color: var(--ink); font-size: 18px; }
+.empty p { max-width: 34ch; margin: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .empty .disc, .spinner, .scanline { animation: none !important; } }
+
+.btn { min-height: 46px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--danger); }
+.btn.danger.armed { background: var(--danger); color: var(--surface); border-color: var(--danger); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.small { min-height: 38px; padding: 0 12px; font-size: 14px; border-radius: 10px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-row .btn { flex: 1 1 140px; }
+
+.nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.nav-in { max-width: 760px; margin: 0 auto; height: var(--nav-h); display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; }
+.tab { background: none; border: 0; display: grid; justify-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted); padding: 6px 0; }
+.tab svg { width: 24px; height: 24px; }
+.tab[aria-current="page"] { color: var(--accent); }
+.tab.add .plus { width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; margin-top: -24px; box-shadow: var(--shadow); border: 4px solid var(--surface); }
+.tab.add .plus svg { width: 26px; height: 26px; }
+
+.sheet { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: env(safe-area-inset-top, 0px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }
+.sheet-head { position: sticky; top: 0; z-index: 2; background: var(--bg); display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.sheet-head h2 { font-size: 18px; }
+.icon-btn { width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; flex: none; }
+.icon-btn svg { width: 20px; height: 20px; }
+.sheet-body { padding-block: 16px; display: grid; gap: 16px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg button { height: 40px; border: 0; border-radius: 9px; background: none; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.big-opts { display: grid; gap: 10px; }
+.big-opt { position: relative; display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: left; width: 100%; }
+.big-opt .ic { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); flex: none; }
+.big-opt .ic svg { width: 26px; height: 26px; }
+.big-opt b { display: block; font-size: 16px; }
+.big-opt span { color: var(--muted); font-size: 13px; }
+.big-opt input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.or { display: flex; gap: 8px; }
+.or input { flex: 1; min-width: 0; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.link-file { position: relative; display: inline-block; color: var(--accent); font-weight: 600; font-size: 14px; }
+.link-file input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+
+/* Scanner */
+.scan { position: fixed; inset: 0; z-index: 40; background: #000; color: #fff; display: grid; grid-template-rows: auto 1fr auto; }
+.scan video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-top, .scan-bottom { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(rgba(0,0,0,.65), rgba(0,0,0,0)); }
+.scan-bottom { padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 20px) max(16px, env(safe-area-inset-left, 0px)); background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.7)); flex-direction: column; text-align: center; }
+.scan .icon-btn { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); color: #fff; }
+.scan-frame { position: relative; z-index: 1; align-self: center; justify-self: center; width: min(82vw, 380px); aspect-ratio: 1.6; border-radius: 16px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.85); overflow: hidden; }
+.scanline { position: absolute; left: 6%; right: 6%; height: 2px; background: #3fc2b2; box-shadow: 0 0 12px #3fc2b2; animation: sweep 1.8s ease-in-out infinite alternate; }
+@keyframes sweep { from { top: 12%; } to { top: 88%; } }
+.scan-msg { font-size: 15px; max-width: 32ch; }
+.scan-err { background: rgba(0,0,0,.6); padding: 12px 14px; border-radius: 12px; font-size: 14px; }
+
+.field { display: grid; gap: 5px; min-width: 0; }
+.field label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.field input, .field select, .field textarea { height: 46px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px; width: 100%; min-width: 0; }
+.field textarea { height: 84px; padding: 10px 12px; resize: vertical; }
+.fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fgrid .full { grid-column: 1 / -1; }
+.ed-cover { display: flex; gap: 14px; align-items: center; }
+.ed-cover .cover { width: 120px; flex: none; }
+.ed-cover-side { display: grid; gap: 8px; min-width: 0; }
+.status { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
+.status.ok { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.status.warn { background: color-mix(in srgb, var(--gold) 16%, var(--surface)); }
+.spinner { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; margin-top: 1px; }
+.value-box { display: flex; align-items: flex-end; gap: 10px; }
+.value-box .field { flex: 1; }
+
+/* Results */
+.results { display: grid; gap: 10px; }
+.res { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: left; width: 100%; }
+.res .cover { width: 64px; flex: none; border-radius: 4px; }
+.res .ph-label { font-size: 8px; }
+.res .tx { min-width: 0; display: grid; gap: 2px; }
+.res .tx b { font-size: 14px; line-height: 1.25; }
+.res .tx span { color: var(--muted); font-size: 12.5px; }
+
+.detail-cover { width: min(100%, 420px); margin: 0 auto; }
+.d-title { display: grid; gap: 4px; text-align: center; }
+.d-title h2 { font-size: 24px; }
+.d-title .a { color: var(--muted); font-size: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.d-value { text-align: center; }
+.d-value .v { font-family: var(--f-mono); font-size: 30px; font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }
+.d-value .r { font-size: 13px; color: var(--muted); }
+.specs { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin: 0; }
+.specs div { display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px; border-top: 1px solid var(--line); }
+.specs div:first-child { border-top: 0; }
+.specs dt { color: var(--muted); font-size: 13px; }
+.specs dd { margin: 0; text-align: right; font-weight: 550; min-width: 0; overflow-wrap: anywhere; }
+
+.prof-head { display: flex; gap: 16px; align-items: center; padding-block: 8px; }
+.avatar { position: relative; width: 84px; height: 84px; border-radius: 50%; flex: none; overflow: hidden; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--f-display); font-stretch: 125%; font-weight: 800; font-size: 30px; box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--line); }
+.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.prof-text { min-width: 0; display: grid; gap: 2px; }
+.prof-text h2 { font-size: 22px; overflow-wrap: anywhere; }
+.prof-text p { margin: 0; color: var(--muted); font-size: 14px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 4px; min-width: 0; }
+.stat .n { font-family: var(--f-mono); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; line-height: 1.15; }
+.stat.gold .n { color: var(--gold); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 12px; }
+.panel h3 { font-size: 15px; }
+.bars { display: grid; gap: 8px; }
+.bar { display: grid; grid-template-columns: minmax(0, 7.5em) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+.bar .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .trk { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; display: block; }
+.bar .fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.bar .num { font-family: var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.top3 { display: grid; gap: 10px; }
+.top3 button { display: flex; align-items: center; gap: 12px; background: none; border: 0; padding: 0; text-align: left; width: 100%; }
+.top3 .cover { width: 48px; flex: none; border-radius: 4px; }
+.top3 .ph-label { font-size: 7px; }
+.top3 .tx { flex: 1; min-width: 0; }
+.top3 .tx b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.top3 .tx span { color: var(--muted); font-size: 13px; }
+.top3 .p { font-family: var(--f-mono); color: var(--gold); font-weight: 600; }
+.muted { color: var(--muted); }
+.sec-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-block: 18px 6px; }
+.sec-title h1 { font-size: 26px; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.pill.on { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); color: var(--accent); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 14px); z-index: 60; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+@media (min-width: 560px) { .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<nav class="nav" aria-label="Hauptnavigation">
+  <div class="nav-in">
+    <button class="tab" data-view="collection">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r=".6" fill="currentColor"/></svg>
+      Sammlung
+    </button>
+    <button class="tab" data-view="wishlist">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+      Wunschliste
+    </button>
+    <button class="tab add" id="tab-add" aria-label="Platte hinzufügen">
+      <span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+      Hinzufügen
+    </button>
+    <button class="tab" data-view="profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.4-5 8-5s6.5 1.5 8 5"/></svg>
+      Profil
+    </button>
+  </div>
+</nav>
+
+<!-- Add -->
+<section class="sheet" id="sheet-add" hidden aria-label="Platte hinzufügen">
+  <div class="wrap">
+    <div class="sheet-head"><h2>Platte hinzufügen</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body">
+      <div class="seg" role="group" aria-label="Ziel">
+        <button id="add-to-collection" aria-pressed="true">In die Sammlung</button>
+        <button id="add-to-wishlist" aria-pressed="false">Auf die Wunschliste</button>
+      </div>
+      <div class="big-opts">
+        <button class="big-opt" id="btn-scan">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M16 8v8"/></svg></div>
+          <div><b>Barcode scannen</b><span>Kamera auf den Strichcode hinten halten – fertig</span></div>
+        </button>
+        <div class="big-opt">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+          <div><b>Cover fotografieren</b><span>Für Platten ohne Barcode. Danach Künstler eintippen und suchen</span></div>
+          <input type="file" id="in-cover" accept="image/*" capture="environment" aria-label="Cover fotografieren">
+        </div>
+        <button class="big-opt" id="btn-manual">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></div>
+          <div><b>Selbst eintragen</b><span>Alle Angaben von Hand</span></div>
+        </button>
+      </div>
+      <div class="field">
+        <label for="in-query">Suchen nach Künstler, Titel oder Barcode</label>
+        <div class="or"><input id="in-query" class="search" placeholder="z. B. Pink Floyd Animals" autocomplete="off" enterkeyhint="search"><button class="btn small primary" id="btn-query">Suchen</button></div>
+      </div>
+      <p class="hint" id="add-hint"></p>
+    </div>
+  </div>
+</section>
+
+<!-- Scanner -->
+<section class="scan" id="sheet-scan" hidden aria-label="Barcode-Scanner">
+  <video id="scan-video" playsinline muted autoplay></video>
+  <div class="scan-top">
+    <button class="icon-btn" data-close aria-label="Scanner schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <strong>Barcode scannen</strong>
+    <button class="icon-btn" id="scan-torch" aria-label="Licht an/aus" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 2h6l-1 7h4l-8 13 1-9H7z"/></svg></button>
+  </div>
+  <div class="scan-frame"><div class="scanline"></div></div>
+  <div class="scan-bottom">
+    <div class="scan-msg" id="scan-msg">Halte den Strichcode auf der Rückseite in den Rahmen.</div>
+    <button class="btn small" id="scan-manual" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.3)">Nummer eintippen</button>
+  </div>
+</section>
+
+<!-- Results -->
+<section class="sheet" id="sheet-results" hidden aria-label="Suchergebnisse">
+  <div class="wrap">
+    <div class="sheet-head"><h2 id="res-title">Welche Pressung?</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body">
+      <div id="res-status" hidden></div>
+      <div class="results" id="res-list"></div>
+      <button class="btn" id="res-manual">Nicht dabei – selbst eintragen</button>
+    </div>
+  </div>
+</section>
+
+<!-- Editor -->
+<section class="sheet" id="sheet-edit" hidden aria-label="Platte bearbeiten">
+  <div class="wrap">
+    <div class="sheet-head"><h2 id="ed-title">Neue Platte</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <form class="sheet-body" id="ed-form" autocomplete="off">
+      <div class="ed-cover">
+        <div class="cover" id="ed-cover"></div>
+        <div class="ed-cover-side">
+          <span class="link-file">Eigenes Cover-Foto<input type="file" id="ed-photo" accept="image/*" capture="environment" aria-label="Cover fotografieren"></span>
+          <button type="button" class="btn small" id="ed-search">Bei Discogs suchen</button>
+        </div>
+      </div>
+      <div id="ed-status" hidden></div>
+      <div class="fgrid">
+        <div class="field full"><label for="f-artist">Künstler</label><input id="f-artist"></div>
+        <div class="field full"><label for="f-title">Titel</label><input id="f-title"></div>
+        <div class="field"><label for="f-year">Jahr</label><input id="f-year" inputmode="numeric" maxlength="4"></div>
+        <div class="field"><label for="f-genre">Genre</label><input id="f-genre" list="genres"></div>
+        <div class="field"><label for="f-label">Label</label><input id="f-label"></div>
+        <div class="field"><label for="f-catno">Katalognummer</label><input id="f-catno"></div>
+        <div class="field"><label for="f-format">Format</label>
+          <select id="f-format"><option>LP</option><option>2LP</option><option>3LP+</option><option>12" Maxi</option><option>10"</option><option>7" Single</option><option>Box-Set</option></select></div>
+        <div class="field"><label for="f-condition">Zustand</label>
+          <select id="f-condition"><option value="M">M · Mint</option><option value="NM">NM · Near Mint</option><option value="VG+" selected>VG+ · Very Good Plus</option><option value="VG">VG · Very Good</option><option value="G+">G+ · Good Plus</option><option value="G">G · Good</option><option value="F">F · Fair</option><option value="P">P · Poor</option></select></div>
+        <div class="field"><label for="f-country">Land</label><input id="f-country"></div>
+        <div class="field"><label for="f-barcode">Barcode</label><input id="f-barcode" inputmode="numeric"></div>
+      </div>
+      <div class="value-box">
+        <div class="field"><label for="f-value" id="f-value-lbl">Wert in €</label><input id="f-value" class="mono" inputmode="decimal" placeholder="0"></div>
+        <button type="button" class="btn small" id="ed-price" style="min-height:46px">Discogs-Preis</button>
+      </div>
+      <p class="hint" id="ed-range"></p>
+      <div class="field"><label for="f-notes">Notizen</label><textarea id="f-notes" placeholder="Pressung, Fehler, wo gekauft …"></textarea></div>
+      <div class="btn-row"><button type="button" class="btn" data-close>Abbrechen</button><button type="submit" class="btn primary" id="ed-save">Speichern</button></div>
+    </form>
+  </div>
+</section>
+
+<!-- Detail -->
+<section class="sheet" id="sheet-detail" hidden aria-label="Plattendetails">
+  <div class="wrap">
+    <div class="sheet-head"><span class="eyebrow" id="dt-where"></span><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body" id="dt-body"></div>
+  </div>
+</section>
+
+<!-- Profile editor -->
+<section class="sheet" id="sheet-profile" hidden aria-label="Profil bearbeiten">
+  <div class="wrap">
+    <div class="sheet-head"><h2>Profil bearbeiten</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <form class="sheet-body" id="pf-form" autocomplete="off">
+      <div class="field"><label for="p-name">Name</label><input id="p-name" maxlength="40"></div>
+      <div class="field"><label for="p-bio">Über mich</label><textarea id="p-bio" maxlength="240" placeholder="Was sammelst du am liebsten?"></textarea></div>
+      <div class="fgrid">
+        <div class="field"><label for="p-since">Sammler seit</label><input id="p-since" inputmode="numeric" maxlength="4" placeholder="2015"></div>
+        <div class="field"><label for="p-fav">Lieblingsgenre</label><input id="p-fav" list="genres"></div>
+        <div class="field full"><label for="p-goal">Ziel (Anzahl Platten)</label><input id="p-goal" inputmode="numeric" placeholder="z. B. 250"></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-close>Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div>
+    </form>
+  </div>
+</section>
+
+<!-- Settings -->
+<section class="sheet" id="sheet-settings" hidden aria-label="Einstellungen">
+  <div class="wrap">
+    <div class="sheet-head"><h2>Einstellungen</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body">
+      <div class="panel">
+        <h3>Discogs verbinden</h3>
+        <p class="hint">Damit findet der Scanner deine Pressung und holt echte Marktpreise. Der Schlüssel bleibt nur auf deinem Handy.</p>
+        <ol class="steps">
+          <li>Bei <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener">discogs.com/settings/developers</a> einloggen (kostenloses Konto).</li>
+          <li>Auf <b>„Generate new token“</b> tippen.</li>
+          <li>Den Token kopieren und hier einfügen.</li>
+        </ol>
+        <div class="field"><label for="s-token">Persönlicher Discogs-Token</label><input id="s-token" autocomplete="off" spellcheck="false" placeholder="Token einfügen"></div>
+        <p class="hint">Tipp: Stell unter <a href="https://www.discogs.com/settings/seller" target="_blank" rel="noopener">Discogs → Verkäufer-Einstellungen</a> die Währung auf Euro, dann kommen die Preisvorschläge in €.</p>
+        <div class="btn-row"><button class="btn primary" id="s-save">Speichern und testen</button></div>
+        <div id="s-status" hidden></div>
+      </div>
+      <div class="panel">
+        <h3>Datensicherung</h3>
+        <p class="hint">Deine Sammlung liegt nur auf diesem Handy. Mach ab und zu eine Sicherung und lege die Datei z. B. in Google Drive.</p>
+        <div class="btn-row">
+          <button class="btn" id="s-export">Sicherung speichern</button>
+          <span class="btn" style="position:relative">Sicherung laden<input type="file" id="s-import" accept="application/json,.json" style="position:absolute;inset:0;opacity:0;width:100%"></span>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Preise aktualisieren</h3>
+        <p class="hint">Holt für alle Platten mit Discogs-Verknüpfung den aktuellen Preis. Dauert etwa eine Sekunde pro Platte.</p>
+        <button class="btn" id="s-refresh">Alle Preise aktualisieren</button>
+        <div id="s-refresh-status" class="hint"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<datalist id="genres"><option>Rock</option><option>Pop</option><option>Jazz</option><option>Hip Hop</option><option>Funk / Soul</option><option>Electronic</option><option>Classical</option><option>Metal</option><option>Punk</option><option>Reggae</option><option>Blues</option><option>Folk, World, &amp; Country</option><option>Stage &amp; Screen</option><option>Schlager</option><option>Krautrock</option><option>Indie</option></datalist>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtMoney = (n, cur = "EUR", dec) => (n == null || n === "" || isNaN(n)) ? "–" :
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: cur || "EUR", minimumFractionDigits: dec ?? (n % 1 ? 2 : 0), maximumFractionDigits: dec ?? 2 }).format(n);
+const num = v => { if (v == null || v === "") return null; if (typeof v === "number") return v; const n = parseFloat(String(v).replace(/\s/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")); return isNaN(n) ? null : n; };
+const uid = () => "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const hueOf = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const CONDITIONS = { M: "Mint", NM: "Near Mint", "VG+": "Very Good Plus", VG: "Very Good", "G+": "Good Plus", G: "Good", F: "Fair", P: "Poor" };
+const DISCOGS_COND = { M: "Mint (M)", NM: "Near Mint (NM or M-)", "VG+": "Very Good Plus (VG+)", VG: "Very Good (VG)", "G+": "Good Plus (G+)", G: "Good (G)", F: "Fair (F)", P: "Poor (P)" };
+
+const S = { records: [], profile: {}, settings: {}, view: "collection", q: "", sort: "added", loaded: false, addTarget: "collection", draft: null, detailId: null };
+
+/* ---------------- IndexedDB ---------------- */
+const IDB = (() => {
+  let dbp;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open("plattenkiste", 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore("records", { keyPath: "id" }); d.createObjectStore("blobs"); d.createObjectStore("kv"); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = async (store, mode, fn) => { const d = await open(); return new Promise((res, rej) => { const t = d.transaction(store, mode); const st = t.objectStore(store); const out = fn(st); t.oncomplete = () => res(out && "result" in out ? out.result : out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
+  return {
+    all: s => tx(s, "readonly", st => st.getAll()),
+    get: (s, k) => tx(s, "readonly", st => st.get(k)),
+    put: (s, v, k) => tx(s, "readwrite", st => k === undefined ? st.put(v) : st.put(v, k)),
+    del: (s, k) => tx(s, "readwrite", st => st.delete(k)),
+    clear: s => tx(s, "readwrite", st => st.clear())
+  };
+})();
+const blobURLs = new Map();
+async function loadBlobURL(id) {
+  if (!id) return null;
+  if (blobURLs.has(id)) return blobURLs.get(id);
+  const b = await IDB.get("blobs", id).catch(() => null);
+  if (!b) return null;
+  const u = URL.createObjectURL(b); blobURLs.set(id, u); return u;
+}
+async function saveBlob(blob) { const id = "b" + uid(); await IDB.put("blobs", blob, id); blobURLs.set(id, URL.createObjectURL(blob)); return id; }
+async function preloadBlobs() { await Promise.all(S.records.map(r => loadBlobURL(r.coverBlobId))); await loadBlobURL(S.profile.avatarBlobId); }
+
+const Store = {
+  async saveRecord(r) {
+    const body = JSON.parse(JSON.stringify(r)); for (const k of Object.keys(body)) if (k.startsWith("_")) delete body[k];
+    await IDB.put("records", body);
+    const i = S.records.findIndex(x => x.id === body.id); if (i >= 0) S.records[i] = body; else S.records.push(body);
+    render(); refreshDetail();
+  },
+  async removeRecord(r) {
+    await IDB.del("records", r.id); if (r.coverBlobId) IDB.del("blobs", r.coverBlobId).catch(() => {});
+    S.records = S.records.filter(x => x.id !== r.id); render();
+  },
+  async saveProfile(p) { S.profile = p; await IDB.put("kv", p, "profile"); render(); },
+  async saveSettings(s) { S.settings = s; await IDB.put("kv", s, "settings"); }
+};
+
+/* ---------------- Images ---------------- */
+async function loadImage(blob) {
+  try { return await createImageBitmap(blob, { imageOrientation: "from-image" }); }
+  catch { return await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(blob); }); }
+}
+async function shrink(blob, max = 900, q = 0.84) {
+  const img = await loadImage(blob);
+  const s = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(r => c.toBlob(r, "image/jpeg", q));
+}
+const toDataURL = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+const coverURL = r => r ? (r._preview || (r.coverBlobId && blobURLs.get(r.coverBlobId)) || r.coverUrl || null) : null;
+function coverHTML(r, cls = "", extra = "") {
+  const url = coverURL(r);
+  const h = hueOf((r.artist || "") + (r.title || ""));
+  const initials = esc((r.artist || r.title || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase());
+  return `<div class="cover ${cls}" ${extra}><div class="ph"><div class="ph-label" style="background:hsl(${h} 55% 42%)">${initials}</div></div>${url ? `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">` : ""}</div>`;
+}
+
+/* ---------------- Discogs / MusicBrainz ---------------- */
+const token = () => (S.settings.token || "").trim();
+let lastCall = 0;
+async function discogs(path, params = {}) {
+  const wait = 1100 - (Date.now() - lastCall); if (wait > 0) await sleep(wait);
+  lastCall = Date.now();
+  const u = new URL("https://api.discogs.com" + path);
+  for (const [k, v] of Object.entries(params)) if (v != null && v !== "") u.searchParams.set(k, v);
+  if (token()) u.searchParams.set("token", token());
+  const r = await fetch(u.toString(), { headers: { Accept: "application/vnd.discogs.v2.discogs+json" } });
+  if (r.status === 401) throw new Error("token");
+  if (r.status === 429) throw new Error("rate");
+  if (!r.ok) { const e = new Error("http"); e.status = r.status; throw e; }
+  return r.json();
+}
+const cleanArtist = s => String(s || "").replace(/\s*\(\d+\)$/, "").replace(/\*$/, "").trim();
+function mapFormat(formats) {
+  const f = (formats || [])[0]; if (!f) return "LP";
+  const d = (f.descriptions || []).join(" ");
+  const qty = parseInt(f.qty) || 1;
+  if (/Box Set/i.test(f.name) || /Box Set/i.test(d)) return "Box-Set";
+  if (/7"/.test(d)) return '7" Single';
+  if (/10"/.test(d)) return '10"';
+  if (qty >= 3) return "3LP+";
+  if (qty === 2) return "2LP";
+  if (/LP/.test(d)) return "LP";
+  if (/12"/.test(d)) return '12" Maxi';
+  return "LP";
+}
+function searchHitToResult(h) {
+  const [artist, ...rest] = String(h.title || "").split(" - ");
+  return {
+    source: "discogs", discogsId: h.id, artist: cleanArtist(artist), title: rest.join(" - ") || h.title,
+    year: h.year || "", label: (h.label || [])[0] || "", catno: h.catno || "", country: h.country || "",
+    formatText: (h.format || []).join(", "), genre: (h.genre || [])[0] || "", thumb: h.cover_image || h.thumb || ""
+  };
+}
+async function discogsSearch(params) {
+  const res = await discogs("/database/search", { type: "release", per_page: 25, ...params });
+  const vinyl = (res.results || []).filter(h => (h.format || []).some(f => /Vinyl|LP|Box Set/i.test(f)));
+  return (vinyl.length ? vinyl : res.results || []).map(searchHitToResult);
+}
+async function discogsRelease(id) {
+  const r = await discogs("/releases/" + id, { curr_abbr: "EUR" });
+  const img = (r.images || []).find(i => i.type === "primary") || (r.images || [])[0];
+  const bc = (r.identifiers || []).find(i => i.type === "Barcode");
+  return {
+    discogsId: r.id, artist: cleanArtist((r.artists || []).map(a => cleanArtist(a.anv || a.name)).join(" & ") || r.artists_sort),
+    title: r.title, year: r.year ? String(r.year) : "", label: (r.labels || [])[0]?.name || "", catno: (r.labels || [])[0]?.catno || "",
+    genre: [(r.genres || [])[0], (r.styles || [])[0]].filter(Boolean).join(" / "), country: r.country || "",
+    format: mapFormat(r.formats), coverUrl: img ? (img.uri || img.uri150) : (r.thumb || ""),
+    barcode: bc ? String(bc.value).replace(/\D/g, "") : "", lowest: r.lowest_price ?? null, numForSale: r.num_for_sale ?? null
+  };
+}
+async function discogsPrice(id, condition) {
+  try {
+    const p = await discogs("/marketplace/price_suggestions/" + id);
+    const hit = p && p[DISCOGS_COND[condition] || DISCOGS_COND["VG+"]];
+    if (hit && hit.value) return { value: Math.round(hit.value * 100) / 100, currency: hit.currency || "EUR", kind: "suggestion" };
+  } catch (e) { if (e.message === "token") throw e; }
+  const st = await discogs("/marketplace/stats/" + id, { curr_abbr: "EUR" });
+  if (st && st.lowest_price && st.lowest_price.value) return { value: Math.round(st.lowest_price.value * 100) / 100, currency: st.lowest_price.currency || "EUR", kind: "lowest", numForSale: st.num_for_sale };
+  return null;
+}
+async function mbSearch(query) {
+  const u = "https://musicbrainz.org/ws/2/release/?fmt=json&limit=20&query=" + encodeURIComponent(query);
+  let r;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    r = await fetch(u, { headers: { Accept: "application/json" } });
+    if (r.status !== 503) break;
+    await sleep(1500 * (attempt + 1));
+  }
+  if (!r.ok) throw new Error("http");
+  const j = await r.json();
+  const all = j.releases || [];
+  const vinyl = all.filter(x => (x.media || []).some(m => /Vinyl|"/i.test(m.format || "")));
+  return (vinyl.length ? vinyl : all).map(x => ({
+    source: "mb", mbid: x.id, artist: (x["artist-credit"] || []).map(a => a.name + (a.joinphrase || "")).join("").trim(),
+    title: x.title, year: (x.date || "").slice(0, 4), label: x["label-info"]?.[0]?.label?.name || "", catno: x["label-info"]?.[0]?.["catalog-number"] || "",
+    country: x.country || "", formatText: (x.media || []).map(m => m.format).filter(Boolean).join(", "), barcode: x.barcode || "",
+    thumb: "https://coverartarchive.org/release/" + x.id + "/front-250"
+  }));
+}
+function lookupErr(e) {
+  if (e && e.message === "token") return "Der Discogs-Token stimmt nicht. Prüfe ihn im Profil unter Einstellungen.";
+  if (e && e.message === "rate") return "Discogs bremst gerade. Warte eine Minute und versuche es noch einmal.";
+  if (!navigator.onLine) return "Keine Internetverbindung. Du kannst die Platte trotzdem selbst eintragen.";
+  return "Die Suche hat nicht geklappt. Versuche es noch einmal oder trage selbst ein.";
+}
+
+/* ---------------- Search flow ---------------- */
+async function runSearch({ barcode, text }) {
+  const list = $("#res-list"); list.innerHTML = "";
+  $("#res-title").textContent = barcode ? "Barcode " + barcode : "Suche: " + text;
+  resStatus("busy", token() ? "Suche bei Discogs …" : "Suche bei MusicBrainz …");
+  openSheet("#sheet-results", { replace: true });
+  S.pending = { barcode: barcode || "" };
+  try {
+    let results = [];
+    if (token()) results = barcode ? await discogsSearch({ barcode }) : await discogsSearch({ q: text });
+    if (!results.length) {
+      const q = barcode ? "barcode:" + barcode : text;
+      results = await mbSearch(q).catch(() => []);
+    }
+    if (!results.length) { resStatus("warn", barcode ? "Zu diesem Barcode wurde nichts gefunden. Trage die Platte selbst ein oder suche nach Künstler und Titel." : "Nichts gefunden. Versuche andere Suchwörter."); return; }
+    resStatus(results.length === 1 ? null : "ok", results.length === 1 ? null : `${results.length} Treffer. Wähle deine Pressung (Label, Land und Jahr helfen).`);
+    if (!token()) resStatus("warn", "Ohne Discogs-Token gibt es keine Preise. Verbinde Discogs im Profil unter Einstellungen.");
+    list.innerHTML = results.map((r, i) => `
+      <button class="res" data-i="${i}">${coverHTML({ ...r, coverUrl: r.thumb })}
+        <span class="tx"><b>${esc(r.artist)} – ${esc(r.title)}</b>
+        <span>${esc([r.label, r.catno].filter(Boolean).join(" · "))}</span>
+        <span>${esc([r.country, r.year, r.formatText].filter(Boolean).join(" · "))}</span></span></button>`).join("");
+    list.querySelectorAll(".res").forEach(b => b.onclick = () => pickResult(results[+b.dataset.i]));
+    if (results.length === 1 && barcode) pickResult(results[0]);
+  } catch (e) { resStatus("warn", lookupErr(e)); }
+}
+function resStatus(kind, text) {
+  const el = $("#res-status");
+  if (!kind) { el.hidden = true; return; }
+  el.hidden = false; el.className = "status " + (kind === "busy" ? "" : kind);
+  el.innerHTML = (kind === "busy" ? '<span class="spinner" aria-hidden="true"></span>' : "") + `<span>${esc(text)}</span>`;
+}
+async function pickResult(r) {
+  const base = S.draftBase || newDraft();
+  S.draftBase = null;
+  const d = { ...base, artist: r.artist, title: r.title, year: String(r.year || ""), label: r.label, catno: r.catno, country: r.country, barcode: r.barcode || S.pending?.barcode || base.barcode || "" };
+  if (!d._preview && !d.coverBlobId) d.coverUrl = r.thumb;
+  if (r.source === "mb") { d.mbid = r.mbid; openEditor(d, { replace: true }); return; }
+  d.discogsId = r.discogsId; d.genre = r.genre;
+  openEditor(d, { replace: true });
+  setStatus("busy", "Lade Details und Preis von Discogs …");
+  try {
+    const rel = await discogsRelease(r.discogsId);
+    if (S.draft !== d) return;
+    Object.assign(d, { artist: rel.artist, title: rel.title, year: rel.year || d.year, label: rel.label, catno: rel.catno, genre: rel.genre, country: rel.country, format: rel.format, barcode: d.barcode || rel.barcode });
+    if (!d._preview && !d.coverBlobId && rel.coverUrl) d.coverUrl = rel.coverUrl;
+    d.numForSale = rel.numForSale;
+    fillForm();
+    await fetchPrice(d, true);
+  } catch (e) { setStatus("warn", lookupErr(e)); }
+}
+async function fetchPrice(d, quiet) {
+  if (!d.discogsId) { setStatus("warn", "Diese Platte ist noch nicht mit Discogs verknüpft. Tippe auf „Bei Discogs suchen“."); return; }
+  if (!token()) { setStatus("warn", "Für Preise brauchst du einen Discogs-Token (Profil → Einstellungen)."); return; }
+  if (!quiet) setStatus("busy", "Hole Preis von Discogs …");
+  try {
+    const p = await discogsPrice(d.discogsId, d.list === "wishlist" ? "VG+" : (d.condition || "VG+"));
+    if (S.draft !== d) return;
+    if (!p) { setStatus("warn", "Discogs hat für diese Pressung gerade keinen Preis. Trag einen eigenen Wert ein."); return; }
+    d.value = p.value; d.currency = p.currency; d.valueSource = "discogs"; d.priceKind = p.kind; d.valueDate = new Date().toISOString().slice(0, 10);
+    if (p.numForSale != null) d.numForSale = p.numForSale;
+    fillForm();
+    setStatus("ok", p.kind === "suggestion" ? `Discogs-Preisvorschlag für ${d.list === "wishlist" ? "VG+" : d.condition}: ${fmtMoney(p.value, p.currency)}` : `Günstigstes Angebot auf Discogs: ${fmtMoney(p.value, p.currency)}${d.numForSale ? ` (${d.numForSale} im Verkauf)` : ""}`);
+  } catch (e) { setStatus("warn", lookupErr(e)); }
+}
+
+/* ---------------- Scanner ---------------- */
+let scanStream = null, scanLoop = 0, zxReader = null, scanDone = false;
+let zxingP = null;
+function loadZXing() {
+  if (window.ZXing) return Promise.resolve();
+  if (!zxingP) zxingP = new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  return zxingP;
+}
+async function startScanner() {
+  scanDone = false;
+  $("#scan-msg").textContent = "Halte den Strichcode auf der Rückseite in den Rahmen.";
+  $("#scan-torch").hidden = true;
+  openSheet("#sheet-scan", { replace: true });
+  const video = $("#scan-video");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { scanError("Dein Browser gibt die Kamera nicht frei. Öffne die App in Chrome."); return; }
+  let useNative = false;
+  try { if ("BarcodeDetector" in window) { const f = await BarcodeDetector.getSupportedFormats(); useNative = f.includes("ean_13"); } } catch {}
+  try {
+    if (useNative) {
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      video.srcObject = scanStream; await video.play().catch(() => {});
+      setupTorch(scanStream);
+      const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+      const tick = async () => {
+        if (!scanStream || scanDone) return;
+        try { const codes = await det.detect(video); if (codes && codes[0]) return onCode(codes[0].rawValue); } catch {}
+        scanLoop = setTimeout(tick, 180);
+      };
+      tick();
+    } else {
+      await loadZXing();
+      const hints = new Map(); hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]);
+      zxReader = new ZXing.BrowserMultiFormatReader(hints, 200);
+      await zxReader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, video, (res) => { if (res && !scanDone) onCode(res.getText()); });
+      if (video.srcObject) setupTorch(video.srcObject);
+    }
+  } catch (e) {
+    scanError(e && e.name === "NotAllowedError" ? "Kamera-Zugriff wurde abgelehnt. Erlaube die Kamera in den Chrome-Einstellungen für diese Seite." : "Die Kamera konnte nicht gestartet werden. Schließe andere Kamera-Apps und versuche es noch einmal.");
+  }
+}
+function setupTorch(stream) {
+  const track = stream.getVideoTracks()[0]; if (!track || !track.getCapabilities) return;
+  const caps = track.getCapabilities(); if (!caps.torch) return;
+  let on = false; const b = $("#scan-torch"); b.hidden = false;
+  b.onclick = () => { on = !on; track.applyConstraints({ advanced: [{ torch: on }] }).catch(() => {}); };
+}
+function scanError(msg) { $("#scan-msg").innerHTML = `<div class="scan-err">${esc(msg)}</div>`; }
+function stopScanner() {
+  scanDone = true; clearTimeout(scanLoop);
+  if (zxReader) { try { zxReader.reset(); } catch {} zxReader = null; }
+  const v = $("#scan-video"); const s = scanStream || v.srcObject;
+  if (s) s.getTracks().forEach(t => t.stop());
+  scanStream = null; v.srcObject = null;
+}
+function onCode(code) {
+  if (scanDone) return; scanDone = true;
+  const clean = String(code).replace(/\D/g, "");
+  if (navigator.vibrate) navigator.vibrate(60);
+  stopScanner();
+  runSearch({ barcode: clean });
+}
+
+/* ---------------- Editor ---------------- */
+const F = ["artist", "title", "year", "genre", "label", "catno", "format", "condition", "country", "barcode", "notes"];
+function fillForm() {
+  const d = S.draft; if (!d) return;
+  for (const k of F) { const el = $("#f-" + k); if (el) el.value = d[k] ?? (k === "format" ? "LP" : k === "condition" ? "VG+" : ""); }
+  $("#f-value").value = d.value != null ? String(d.value).replace(".", ",") : "";
+  $("#ed-cover").outerHTML = coverHTML(d, "", 'id="ed-cover"');
+  const wish = d.list === "wishlist";
+  $("#f-value-lbl").textContent = (wish ? "Preis ca." : "Wert") + " in " + (d.currency && d.currency !== "EUR" ? d.currency : "€");
+  $("#ed-range").textContent = d.valueSource === "discogs" && d.valueDate
+    ? `${d.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag"}, Stand ${new Date(d.valueDate).toLocaleDateString("de-DE")}.` : "";
+  $("#ed-price").hidden = !d.discogsId;
+}
+function readForm() {
+  const d = S.draft;
+  for (const k of F) { const el = $("#f-" + k); if (el) d[k] = el.value.trim(); }
+  const v = num($("#f-value").value);
+  const changed = v == null ? d.value != null : (d.value == null || Math.abs(v - d.value) > 0.001);
+  if (changed) { d.value = v; d.valueSource = v == null ? null : "manuell"; d.priceKind = null; }
+}
+function setStatus(kind, text) {
+  const el = $("#ed-status");
+  if (!kind) { el.hidden = true; return; }
+  el.hidden = false; el.className = "status " + (kind === "busy" ? "" : kind);
+  el.innerHTML = (kind === "busy" ? '<span class="spinner" aria-hidden="true"></span>' : "") + `<span>${esc(text)}</span>`;
+}
+function openEditor(draft, opts = {}) {
+  S.draft = draft;
+  $("#ed-title").textContent = draft._new ? (draft.list === "wishlist" ? "Neuer Wunsch" : "Neue Platte") : "Platte bearbeiten";
+  setStatus(null); fillForm();
+  openSheet("#sheet-edit", opts);
+}
+function newDraft(extra = {}) { return { id: uid(), _new: true, list: S.addTarget, format: "LP", condition: "VG+", currency: "EUR", addedAt: new Date().toISOString(), ...extra }; }
+
+$("#ed-form").addEventListener("submit", async e => {
+  e.preventDefault(); readForm();
+  const d = S.draft;
+  if (!d.artist && !d.title) { toast("Bitte mindestens Künstler oder Titel eintragen."); return; }
+  const btn = $("#ed-save"); btn.disabled = true; btn.textContent = "Speichere …";
+  try {
+    if (d._blob) { const old = d.coverBlobId; d.coverBlobId = await saveBlob(await shrink(d._blob, 900, 0.84)); if (old) IDB.del("blobs", old).catch(() => {}); }
+    const wasNew = d._new;
+    const rec = { ...d, updatedAt: new Date().toISOString() };
+    await Store.saveRecord(rec);
+    S.draft = null; closeSheet();
+    toast(wasNew ? (rec.list === "wishlist" ? "Auf die Wunschliste gesetzt" : "Zur Sammlung hinzugefügt") : "Gespeichert");
+    if (wasNew) setView(rec.list);
+  } catch { toast("Speichern hat nicht geklappt. Ist der Speicher voll?"); }
+  finally { btn.disabled = false; btn.textContent = "Speichern"; }
+});
+$("#ed-photo").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  readForm();
+  const blob = await shrink(f, 1400, 0.88);
+  Object.assign(S.draft, { _blob: blob, _preview: URL.createObjectURL(blob) });
+  fillForm();
+});
+$("#ed-search").onclick = () => {
+  readForm(); const d = S.draft;
+  const text = [d.artist, d.title].filter(Boolean).join(" ");
+  if (!text && !d.barcode) { toast("Trag zuerst Künstler oder Titel ein."); return; }
+  S.draftBase = d;
+  runSearch(d.barcode && !text ? { barcode: d.barcode } : { text: text + (d.catno ? " " + d.catno : "") });
+};
+$("#ed-price").onclick = () => { readForm(); fetchPrice(S.draft); };
+$("#f-condition").addEventListener("change", () => { readForm(); if (S.draft.discogsId && token() && S.draft.valueSource !== "manuell") fetchPrice(S.draft); });
+
+/* ---------------- Add sheet ---------------- */
+function setAddTarget(t) { S.addTarget = t; $("#add-to-collection").setAttribute("aria-pressed", t === "collection"); $("#add-to-wishlist").setAttribute("aria-pressed", t === "wishlist"); }
+$("#add-to-collection").onclick = () => setAddTarget("collection");
+$("#add-to-wishlist").onclick = () => setAddTarget("wishlist");
+$("#btn-scan").onclick = () => { S.draftBase = null; startScanner(); };
+$("#btn-manual").onclick = () => openEditor(newDraft(), { replace: true });
+$("#in-cover").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  let blob; try { blob = await shrink(f, 1400, 0.88); } catch { toast("Das Foto konnte nicht geöffnet werden."); return; }
+  openEditor(newDraft({ _blob: blob, _preview: URL.createObjectURL(blob) }), { replace: true });
+  setStatus("ok", "Foto ist drin. Trag Künstler und Titel ein und tippe auf „Bei Discogs suchen“, um Daten und Preis zu holen.");
+  setTimeout(() => $("#f-artist").focus(), 300);
+});
+function doQuery() {
+  const v = $("#in-query").value.trim(); if (!v) return;
+  $("#in-query").value = ""; S.draftBase = null;
+  const digits = v.replace(/[\s-]/g, "");
+  if (/^\d{8,14}$/.test(digits)) runSearch({ barcode: digits }); else runSearch({ text: v });
+}
+$("#btn-query").onclick = doQuery;
+$("#in-query").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); doQuery(); } });
+$("#tab-add").onclick = () => { setAddTarget(S.view === "wishlist" ? "wishlist" : "collection"); $("#add-hint").textContent = token() ? "" : "Tipp: Verbinde Discogs im Profil (Einstellungen), dann bekommst du Pressung und Preis automatisch."; openSheet("#sheet-add"); };
+$("#scan-manual").onclick = () => { stopScanner(); openEditor(newDraft(), { replace: true }); setStatus("ok", "Tippe die Ziffern unter dem Strichcode ins Feld „Barcode“ und dann auf „Bei Discogs suchen“."); setTimeout(() => $("#f-barcode").focus(), 300); };
+$("#res-manual").onclick = () => { const base = S.draftBase || newDraft({ barcode: S.pending?.barcode || "" }); S.draftBase = null; openEditor(base, { replace: true }); };
+
+/* ---------------- Detail ---------------- */
+function openDetail(id) { S.detailId = id; refreshDetail(true); }
+function refreshDetail(open) {
+  if (!S.detailId) return;
+  const r = S.records.find(x => x.id === S.detailId);
+  if (!r) return;
+  const wish = r.list === "wishlist";
+  $("#dt-where").textContent = wish ? "Wunschliste" : "Sammlung";
+  const rows = [["Label", r.label], ["Katalognummer", r.catno], ["Jahr", r.year], ["Genre", r.genre], ["Format", r.format],
+    ["Zustand", !wish && r.condition ? `${r.condition} · ${CONDITIONS[r.condition] || ""}` : null], ["Land", r.country], ["Barcode", r.barcode],
+    ["Hinzugefügt", r.addedAt ? new Date(r.addedAt).toLocaleDateString("de-DE") : null]].filter(x => x[1]);
+  const src = r.valueSource === "discogs" ? `${r.priceKind === "lowest" ? "Günstigstes Discogs-Angebot" : "Discogs-Preisvorschlag"} · ${new Date(r.valueDate).toLocaleDateString("de-DE")}` : r.valueSource === "manuell" ? "Eigener Wert" : "";
+  $("#dt-body").innerHTML = `
+    ${coverHTML(r, "detail-cover")}
+    <div class="d-title"><h2>${esc(r.title || "Ohne Titel")}</h2><div class="a">${esc(r.artist || "Unbekannt")}</div></div>
+    <div class="chips">${[r.year, r.format, wish ? null : r.condition, (r.genre || "").split(" / ")[0]].filter(Boolean).map(c => `<span class="badge">${esc(c)}</span>`).join("")}</div>
+    <div class="d-value"><div class="eyebrow">${wish ? "Preis ca." : "Wert"}</div><div class="v">${fmtMoney(r.value, r.currency)}</div>${src ? `<div class="r">${esc(src)}</div>` : ""}</div>
+    ${rows.length ? `<dl class="specs">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` : ""}
+    ${r.notes ? `<div class="panel"><div class="eyebrow">Notizen</div><div>${esc(r.notes)}</div></div>` : ""}
+    <div class="btn-row">
+      <button class="btn primary" id="dt-move">${wish ? "Gekauft – in die Sammlung" : "Auf die Wunschliste"}</button>
+      <button class="btn" id="dt-edit">Bearbeiten</button>
+    </div>
+    ${r.discogsId ? `<a class="btn" href="https://www.discogs.com/release/${encodeURIComponent(r.discogsId)}" target="_blank" rel="noopener">Auf Discogs ansehen</a>` : ""}
+    <button class="btn danger" id="dt-del">Löschen</button>`;
+  $("#dt-edit").onclick = () => openEditor({ ...r }, { replace: true });
+  $("#dt-move").onclick = async () => {
+    const next = { ...r, list: wish ? "collection" : "wishlist", updatedAt: new Date().toISOString() };
+    if (wish) next.addedAt = new Date().toISOString();
+    await Store.saveRecord(next); S.detailId = null; closeSheet();
+    toast(wish ? "In die Sammlung verschoben" : "Auf die Wunschliste verschoben"); setView(next.list);
+  };
+  const del = $("#dt-del");
+  del.onclick = async () => {
+    if (!del.classList.contains("armed")) { del.classList.add("armed"); del.textContent = "Wirklich löschen? Nochmal tippen"; setTimeout(() => { if (del.isConnected) { del.classList.remove("armed"); del.textContent = "Löschen"; } }, 4000); return; }
+    await Store.removeRecord(r); S.detailId = null; closeSheet(); toast("Gelöscht");
+  };
+  if (open) openSheet("#sheet-detail");
+}
+
+/* ---------------- Profile & settings ---------------- */
+$("#pf-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  await Store.saveProfile({ ...S.profile, name: $("#p-name").value.trim(), bio: $("#p-bio").value.trim(), since: $("#p-since").value.trim(), fav: $("#p-fav").value.trim(), goal: $("#p-goal").value.replace(/\D/g, "") });
+  closeSheet(); toast("Profil gespeichert");
+});
+function openProfileEditor() {
+  const p = S.profile;
+  $("#p-name").value = p.name || ""; $("#p-bio").value = p.bio || ""; $("#p-since").value = p.since || ""; $("#p-fav").value = p.fav || ""; $("#p-goal").value = p.goal || "";
+  openSheet("#sheet-profile");
+}
+async function onAvatar(file) {
+  if (!file) return;
+  try { const old = S.profile.avatarBlobId; const id = await saveBlob(await shrink(file, 400, 0.85)); await Store.saveProfile({ ...S.profile, avatarBlobId: id }); if (old) IDB.del("blobs", old).catch(() => {}); toast("Profilbild gespeichert"); }
+  catch { toast("Profilbild konnte nicht gespeichert werden."); }
+}
+function openSettings() { $("#s-token").value = S.settings.token || ""; $("#s-status").hidden = true; $("#s-refresh-status").textContent = ""; openSheet("#sheet-settings"); }
+$("#s-save").onclick = async () => {
+  const t = $("#s-token").value.trim();
+  await Store.saveSettings({ ...S.settings, token: t });
+  const st = $("#s-status"); st.hidden = false;
+  if (!t) { st.className = "status"; st.textContent = "Token entfernt. Die Suche läuft jetzt über MusicBrainz, ohne Preise."; return; }
+  st.className = "status"; st.innerHTML = '<span class="spinner"></span><span>Teste Verbindung …</span>';
+  try { const me = await discogs("/oauth/identity"); st.className = "status ok"; st.textContent = `Verbunden als ${me.username}. Scanner und Preise sind bereit.`; }
+  catch (e) { st.className = "status warn"; st.textContent = e.message === "token" ? "Der Token wurde nicht angenommen. Kopiere ihn noch einmal komplett." : lookupErr(e); }
+};
+$("#s-export").onclick = async () => {
+  const blobs = {};
+  for (const r of S.records) if (r.coverBlobId) { const b = await IDB.get("blobs", r.coverBlobId).catch(() => null); if (b) blobs[r.coverBlobId] = await toDataURL(b); }
+  if (S.profile.avatarBlobId) { const b = await IDB.get("blobs", S.profile.avatarBlobId).catch(() => null); if (b) blobs[S.profile.avatarBlobId] = await toDataURL(b); }
+  const data = { app: "plattenkiste", version: 1, exportedAt: new Date().toISOString(), records: S.records, profile: S.profile, blobs };
+  const file = new Blob([JSON.stringify(data)], { type: "application/json" });
+  const name = `plattenkiste-${new Date().toISOString().slice(0, 10)}.json`;
+  try { if (navigator.canShare && navigator.canShare({ files: [new File([file], name, { type: "application/json" })] })) { await navigator.share({ files: [new File([file], name, { type: "application/json" })], title: "Plattenkiste-Sicherung" }); return; } } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  toast("Sicherung gespeichert");
+};
+$("#s-import").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (data.app !== "plattenkiste" || !Array.isArray(data.records)) throw 0;
+    for (const [id, url] of Object.entries(data.blobs || {})) { const b = await (await fetch(url)).blob(); await IDB.put("blobs", b, id); }
+    for (const r of data.records) await IDB.put("records", r);
+    if (data.profile) await IDB.put("kv", data.profile, "profile");
+    await loadAll(); toast(`${data.records.length} Einträge geladen`);
+  } catch { toast("Diese Datei ist keine Plattenkiste-Sicherung."); }
+});
+$("#s-refresh").onclick = async () => {
+  const st = $("#s-refresh-status"), btn = $("#s-refresh");
+  if (!token()) { st.textContent = "Verbinde zuerst Discogs (oben)."; return; }
+  const list = S.records.filter(r => r.discogsId && r.valueSource !== "manuell");
+  if (!list.length) { st.textContent = "Keine Platten mit Discogs-Verknüpfung gefunden."; return; }
+  btn.disabled = true; let ok = 0;
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i]; st.textContent = `${i + 1} / ${list.length}: ${r.artist} – ${r.title}`;
+    try { const p = await discogsPrice(r.discogsId, r.list === "wishlist" ? "VG+" : (r.condition || "VG+")); if (p) { await Store.saveRecord({ ...r, value: p.value, currency: p.currency, valueSource: "discogs", priceKind: p.kind, valueDate: new Date().toISOString().slice(0, 10) }); ok++; } }
+    catch (e) { if (e.message === "token") { st.textContent = "Der Token wurde nicht angenommen."; break; } if (e.message === "rate") await sleep(30000); }
+  }
+  btn.disabled = false; st.textContent = `Fertig: ${ok} von ${list.length} Preisen aktualisiert.`;
+};
+
+/* ---------------- Sheets with Android back button ---------------- */
+const stack = [];
+function openSheet(sel, { replace } = {}) {
+  if (replace && stack.length) { hideRaw(stack.pop()); history.replaceState({ sheet: sel }, ""); }
+  else history.pushState({ sheet: sel }, "");
+  stack.push(sel); const el = $(sel); el.hidden = false; el.scrollTop = 0; document.body.style.overflow = "hidden";
+}
+function hideRaw(sel) {
+  $(sel).hidden = true;
+  if (sel === "#sheet-scan") stopScanner();
+  if (sel === "#sheet-edit") S.draft = null;
+  if (sel === "#sheet-detail") S.detailId = null;
+  if (!stack.length || (stack.length === 1 && stack[0] === sel)) document.body.style.overflow = "";
+}
+function closeSheet() { if (stack.length) history.back(); }
+window.addEventListener("popstate", () => { const top = stack.pop(); if (top) hideRaw(top); if (!stack.length) document.body.style.overflow = ""; });
+document.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
+document.querySelectorAll(".tab[data-view]").forEach(t => t.onclick = () => setView(t.dataset.view));
+function setView(v) { S.view = v; S.q = ""; render(); window.scrollTo(0, 0); }
+
+let toastT;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+
+/* ---------------- Render ---------------- */
+const sumOf = list => list.reduce((a, r) => a + (num(r.value) || 0), 0);
+function sorted(list) {
+  const q = S.q.toLowerCase().trim();
+  const l = q ? list.filter(r => [r.artist, r.title, r.label, r.genre, r.year, r.catno].some(v => String(v || "").toLowerCase().includes(q))) : list.slice();
+  const by = {
+    added: (a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || "")),
+    artist: (a, b) => String(a.artist || "").localeCompare(String(b.artist || ""), "de") || String(a.year || "").localeCompare(String(b.year || "")),
+    value: (a, b) => (num(b.value) || 0) - (num(a.value) || 0),
+    year: (a, b) => (parseInt(a.year) || 9999) - (parseInt(b.year) || 9999)
+  };
+  return l.sort(by[S.sort] || by.added);
+}
+function renderList(kind) {
+  const all = S.records.filter(r => (r.list || "collection") === kind);
+  const list = sorted(all); const wish = kind === "wishlist";
+  const head = `<header class="top"><div class="wrap">
+    <div class="top-row">
+      <div><div class="brand"><span class="brand-disc"></span>${wish ? "Wunschliste" : "Plattenkiste"}</div>
+      <div class="eyebrow" style="margin-top:4px">${all.length} ${all.length === 1 ? (wish ? "Wunsch" : "Platte") : (wish ? "Wünsche" : "Platten")}</div></div>
+      <div class="sum"><div class="eyebrow">${wish ? "Kostet ca." : "Sammlungswert"}</div><div class="val">${fmtMoney(sumOf(all), "EUR", 0)}</div></div>
+    </div>
+    ${all.length ? `<div class="tools"><input class="search" id="q" type="search" placeholder="Künstler, Titel, Label …" value="${esc(S.q)}" aria-label="Suchen">
+      <select class="sort" id="sort" aria-label="Sortieren"><option value="added">Neueste</option><option value="artist">Künstler A–Z</option><option value="value">Wert ↓</option><option value="year">Jahr</option></select></div>` : ""}
+  </div></header>`;
+  let body;
+  if (!S.loaded) body = `<div class="empty"><div class="disc"></div><p>Lade Sammlung …</p></div>`;
+  else if (!all.length) body = `<div class="empty"><div class="disc"></div><h3>${wish ? "Noch keine Wünsche" : "Noch keine Platten"}</h3>
+    <p>${wish ? "Setz Platten drauf, die du noch suchst. Wenn du eine kaufst, verschiebst du sie mit einem Tipp in die Sammlung." : "Scanne den Barcode auf der Rückseite. Die App findet die Pressung, das Cover und den aktuellen Preis."}</p>
+    <button class="btn primary" id="empty-add">${wish ? "Wunsch hinzufügen" : "Erste Platte scannen"}</button></div>`;
+  else if (!list.length) body = `<div class="empty"><p>Nichts gefunden für „${esc(S.q)}“.</p></div>`;
+  else body = `<div class="grid">${list.map(r => `<button class="card" data-id="${esc(r.id)}">${coverHTML(r)}
+      <div class="t">${esc(r.title || "Ohne Titel")}</div><div class="a">${esc(r.artist || "Unbekannt")}</div>
+      <div class="meta"><span class="p">${fmtMoney(r.value, r.currency)}</span><span class="badge">${esc(wish ? (r.year || r.format || "") : (r.condition || r.format || ""))}</span></div></button>`).join("")}</div>`;
+  return head + `<main class="wrap">${body}</main>`;
+}
+function bars(map) {
+  const arr = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6); const max = Math.max(1, ...arr.map(a => a[1]));
+  return arr.map(([k, v]) => `<div class="bar"><span class="lbl">${esc(k)}</span><span class="trk"><span class="fill" style="width:${(v / max * 100).toFixed(1)}%"></span></span><span class="num">${v}</span></div>`).join("");
+}
+function renderProfile() {
+  const p = S.profile;
+  const col = S.records.filter(r => (r.list || "collection") === "collection"), wish = S.records.filter(r => r.list === "wishlist");
+  const total = sumOf(col), avg = col.length ? total / col.length : null;
+  const initials = esc((p.name || "Ich").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase());
+  const avatarUrl = blobURLs.get(p.avatarBlobId);
+  const genres = {}, decades = {}, formats = {};
+  for (const r of col) {
+    const g = String(r.genre || "").split(/[\/,]/)[0].trim() || "Ohne Genre"; genres[g] = (genres[g] || 0) + 1;
+    const y = parseInt(r.year); if (y > 1890 && y < 2100) { const d = Math.floor(y / 10) * 10; const k = (d >= 2000 ? d : String(d).slice(2)) + "er"; decades[k] = (decades[k] || 0) + 1; }
+    formats[r.format || "LP"] = (formats[r.format || "LP"] || 0) + 1;
+  }
+  const top = col.filter(r => num(r.value)).sort((a, b) => num(b.value) - num(a.value)).slice(0, 3);
+  const goal = parseInt(p.goal);
+  const sub = [p.since ? `Sammelt seit ${esc(p.since)}` : null, p.fav ? `Liebt ${esc(p.fav)}` : null].filter(Boolean).join(" · ");
+  return `<main class="wrap">
+    <div class="sec-title"><h1>Profil</h1><div class="btn-row" style="flex-wrap:nowrap"><button class="btn small" id="pf-settings" aria-label="Einstellungen">Einstellungen</button><button class="btn small" id="pf-edit">Bearbeiten</button></div></div>
+    <div class="prof-head">
+      <label class="avatar" title="Profilbild ändern">${initials}${avatarUrl ? `<img src="${esc(avatarUrl)}" alt="">` : ""}<input type="file" id="pf-avatar" accept="image/*" aria-label="Profilbild ändern"></label>
+      <div class="prof-text"><h2>${esc(p.name || "Dein Profil")}</h2>${sub ? `<p>${sub}</p>` : `<p>Tippe auf „Bearbeiten“, um dein Profil auszufüllen.</p>`}${p.bio ? `<p style="color:var(--ink)">${esc(p.bio)}</p>` : ""}
+      <p><span class="pill ${token() ? "on" : ""}">${token() ? "Discogs verbunden" : "Discogs nicht verbunden"}</span></p></div>
+    </div>
+    <div class="sheet-body">
+      <div class="stats">
+        <div class="stat"><span class="eyebrow">Platten</span><span class="n">${col.length}</span></div>
+        <div class="stat gold"><span class="eyebrow">Portfoliowert</span><span class="n">${fmtMoney(total, "EUR", 0)}</span></div>
+        <div class="stat"><span class="eyebrow">Wunschliste</span><span class="n">${wish.length}</span></div>
+        <div class="stat"><span class="eyebrow">Wünsche kosten</span><span class="n">${fmtMoney(sumOf(wish), "EUR", 0)}</span></div>
+      </div>
+      ${goal ? `<div class="panel"><div class="sec-title" style="padding:0"><h3>Ziel: ${goal} Platten</h3><span class="mono muted">${Math.min(100, Math.round(col.length / goal * 100))} %</span></div>
+        <div class="bar" style="grid-template-columns:1fr"><span class="trk" style="height:10px"><span class="fill" style="width:${Math.min(100, col.length / goal * 100).toFixed(1)}%"></span></span></div></div>` : ""}
+      ${col.length ? `<div class="panel"><div class="sec-title" style="padding:0"><h3>Wertvollste Platten</h3><span class="mono muted">Ø ${fmtMoney(avg, "EUR", 0)}</span></div>
+        <div class="top3">${top.length ? top.map(r => `<button data-id="${esc(r.id)}">${coverHTML(r)}<span class="tx"><b>${esc(r.title || "Ohne Titel")}</b><span>${esc(r.artist || "")}</span></span><span class="p">${fmtMoney(r.value, r.currency)}</span></button>`).join("") : `<p class="muted" style="margin:0">Noch keine Werte eingetragen.</p>`}</div></div>
+      <div class="panel"><h3>Genres</h3><div class="bars">${bars(genres)}</div></div>
+      ${Object.keys(decades).length ? `<div class="panel"><h3>Jahrzehnte</h3><div class="bars">${bars(decades)}</div></div>` : ""}
+      <div class="panel"><h3>Formate</h3><div class="bars">${bars(formats)}</div></div>`
+      : `<div class="panel"><h3>Noch leer</h3><p class="muted" style="margin:0">Sobald du Platten einträgst, siehst du hier deine wertvollsten Stücke, Genres und Jahrzehnte.</p></div>`}
+      <p class="hint">Preise kommen von Discogs (Preisvorschlag für deinen Zustand oder günstigstes Angebot) oder sind deine eigenen Angaben.</p>
+    </div></main>`;
+}
+function render() {
+  const app = $("#app");
+  const focusQ = document.activeElement && document.activeElement.id === "q";
+  const caret = focusQ ? document.activeElement.selectionStart : null;
+  app.innerHTML = S.view === "profile" ? renderProfile() : renderList(S.view);
+  document.querySelectorAll(".tab[data-view]").forEach(t => { if (t.dataset.view === S.view) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
+  const q = $("#q"); if (q) { q.oninput = () => { S.q = q.value; render(); }; if (focusQ) { q.focus(); try { q.setSelectionRange(caret, caret); } catch {} } }
+  const so = $("#sort"); if (so) { so.value = S.sort; so.onchange = () => { S.sort = so.value; render(); }; }
+  app.querySelectorAll("[data-id]").forEach(b => b.onclick = () => openDetail(b.dataset.id));
+  const ea = $("#empty-add"); if (ea) ea.onclick = () => { $("#tab-add").click(); };
+  const pe = $("#pf-edit"); if (pe) pe.onclick = openProfileEditor;
+  const ps = $("#pf-settings"); if (ps) ps.onclick = openSettings;
+  const av = $("#pf-avatar"); if (av) av.onchange = e => { const f = e.target.files[0]; e.target.value = ""; onAvatar(f); };
+}
+
+async function loadAll() {
+  try {
+    S.records = await IDB.all("records");
+    S.profile = (await IDB.get("kv", "profile")) || {};
+    S.settings = (await IDB.get("kv", "settings")) || {};
+    await preloadBlobs();
+  } catch { toast("Der Speicher des Browsers ist nicht verfügbar."); }
+  S.loaded = true; render();
+}
+render(); loadAll();
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>
