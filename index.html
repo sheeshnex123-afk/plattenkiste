@@ -493,6 +493,30 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .set-prog .trk { height: 10px; }
 .set-nums b { font-family: var(--f-display); font-size: 22px; }
 
+/* Several cards from one photo */
+.cb-list { display: grid; gap: 8px; }
+.cb-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); animation: rise .4s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 40ms); transition: opacity .3s; }
+.cb-row.saved { opacity: .5; }
+.cb-row.none { border-style: dashed; box-shadow: none; }
+.cb-row.check { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.cb-check { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); color: transparent; display: grid; place-items: center; padding: 0; transition: background .2s, color .2s; }
+.cb-check svg { width: 18px; height: 18px; }
+.cb-check[aria-pressed="true"] { background: var(--dusk); border-color: transparent; color: #fff; }
+.cb-row.saved .cb-check { background: var(--sage); border-color: transparent; color: #fff; }
+.cb-check:disabled:not(.cb-row.saved .cb-check) { opacity: .35; }
+.cb-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 0; text-align: left; }
+.cb-main .mini-card { width: 46px; }
+.cb-main .tx { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.cb-main .tx b { font-family: var(--f-display); font-variation-settings: "SOFT" 100; font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-main .tx span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-main .tx .cb-st { color: var(--accent); font-weight: 600; }
+.cb-row.search .cb-st { color: var(--muted); }
+.cb-row.saved .cb-st { color: var(--sage); }
+.cb-r { display: grid; justify-items: end; gap: 4px; flex: none; }
+.cb-r .p { color: var(--gold); font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cb-foot { position: sticky; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); padding-top: 4px; z-index: 2; }
+.cb-foot .btn { width: 100%; }
+
 /* Card editor */
 .ce-top { display: flex; gap: 16px; align-items: center; padding: 14px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .ce-img { width: 118px; flex: none; }
@@ -787,7 +811,7 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
       <div class="big-opts">
         <div class="big-opt dusk-ic">
           <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-          <div><b>Karte fotografieren</b><span>Erkennt Karte, Set und Zustand und holt den Cardmarket-Preis</span></div>
+          <div><b>Karten fotografieren</b><span>Eine Karte oder eine ganze Albumseite – bis zu 9 Karten auf einmal, mit Set, Zustand und Preis</span></div>
           <input type="file" id="cin-photo" accept="image/*" capture="environment" aria-label="Karte fotografieren">
         </div>
         <div class="big-opt dusk-ic">
@@ -810,6 +834,18 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
   <div class="wrap">
     <div class="sheet-head"><h2 id="cres-title">Welche Karte?</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="sheet-body"><div id="cres-status" hidden></div><div class="pgrid" id="cres-list"></div></div>
+  </div>
+</section>
+
+<!-- Pokémon cards: several cards from one photo -->
+<section class="sheet" id="sheet-cbatch" hidden aria-label="Mehrere Karten">
+  <div class="wrap">
+    <div class="sheet-head"><h2 id="cb-title">Karten erkannt</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body">
+      <p class="hint" id="cb-hint"></p>
+      <div class="cb-list" id="cb-list"></div>
+      <div class="cb-foot"><button class="btn primary" id="cb-add" disabled>Hinzufügen</button></div>
+    </div>
   </div>
 </section>
 
@@ -1185,36 +1221,64 @@ async function mbSearch(query) {
     thumb: "https://coverartarchive.org/release/" + x.id + "/front-250"
   }));
 }
-/* ---------------- Gemini cover recognition ---------------- */
+/* ---------------- Gemini recognition (covers and cards) ---------------- */
+// The free tier counts requests per model and per day, and the regular Flash model only gets a handful.
+// So the app keeps a list of usable models, tries the ones with big free quotas first (Flash-Lite, Gemma 3),
+// and when a model is used up for the day it notes that and moves on to the next one.
 const gemKey = () => (S.settings.geminiKey || "").trim();
-async function geminiModels() {
-  const list = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.0-flash"];
-  return S.settings.geminiModel ? [S.settings.geminiModel, ...list] : list;
+const pacificDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }); // quotas reset at midnight Pacific
+const GEM_FALLBACK = ["gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemma-3-27b-it", "gemma-3-12b-it", "gemini-flash-latest", "gemini-2.5-flash"];
+const isGemma = m => /gemma/.test(m);
+function gemRank(n) {
+  if (/flash-lite/.test(n)) return 0;
+  if (/gemma-3-27b/.test(n)) return 1;
+  if (/gemma-3-12b/.test(n)) return 2;
+  if (/flash/.test(n)) return 3;
+  return 9;
 }
-async function geminiDiscoverModel() {
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=" + encodeURIComponent(gemKey()));
-  if (r.status === 400 || r.status === 403) throw new Error("gemkey");
-  if (!r.ok) throw new Error("http");
-  const j = await r.json();
-  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent") && /flash/.test(m.name) && !/lite|image|tts|live|audio|thinking|exp/.test(m.name));
-  ok.sort((a, b) => b.name.localeCompare(a.name, "en", { numeric: true }));
-  return ok.length ? ok[0].name.replace(/^models\//, "") : null;
+let gemListP = null;
+async function geminiModelList() {
+  const c = S.settings.gemModels;
+  if (c && c.day === pacificDay() && c.list && c.list.length) return c.list;
+  if (!gemListP) gemListP = (async () => {
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + encodeURIComponent(gemKey()));
+      if (r.status === 400 || r.status === 403) throw new Error("gemkey");
+      if (!r.ok) return GEM_FALLBACK;
+      const j = await r.json();
+      const names = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace(/^models\//, ""))
+        .filter(n => /^(gemini-[\d.]+-flash|gemini-flash|gemma-3-(27|12)b)/.test(n) && !/image|tts|live|audio|thinking|exp|embed|native|computer|robotics|-8b/.test(n));
+      names.sort((a, b) => gemRank(a) - gemRank(b) || b.localeCompare(a, "en", { numeric: true }));
+      const list = names.length ? names.slice(0, 10) : GEM_FALLBACK;
+      await Store.saveSettings({ ...S.settings, gemModels: { day: pacificDay(), list } });
+      return list;
+    } finally { gemListP = null; }
+  })();
+  return gemListP;
 }
-// Thinking makes Gemini much slower and isn't needed to recognise a cover.
+const gemOut = () => { const o = S.settings.gemOut; return o && o.day === pacificDay() ? o.models : []; };
+function markGemOut(m) { Store.saveSettings({ ...S.settings, gemOut: { day: pacificDay(), models: [...new Set([...gemOut(), m])] } }); }
+// Thinking makes Gemini much slower and isn't needed to read a cover or a card.
 function thinkingFor(model) {
-  if (/2\.0/.test(model)) return null;
+  if (isGemma(model) || /2\.0/.test(model)) return null;
   if (/2\.5/.test(model)) return { thinkingBudget: 0 };
   return { thinkingLevel: "minimal" };
 }
-async function geminiCall(model, body, ms = 25000) {
+async function geminiCall(model, body, ms = 30000) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
   try {
     return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(gemKey())}`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
-  } catch (e) { if (e.name === "AbortError") return { ok: false, status: 408 }; throw e; }
+  } catch (e) { if (e.name === "AbortError") return { ok: false, status: 408, text: async () => "" }; throw e; }
   finally { clearTimeout(t); }
 }
-async function geminiIdentify(blob, customPrompt, px = 800) {
+function gemJSON(j) {
+  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); } catch { return null; }
+}
+async function geminiIdentify(blob, customPrompt, px = 800, maxTokens = 2048) {
   const small = await shrink(blob, px, 0.85);
   const b64 = (await toDataURL(small)).split(",")[1];
   const prompt = customPrompt || `Du bist ein Experte für Schallplatten mit Discogs-Wissen. Das Foto zeigt das Cover (oder die Rückseite) einer Schallplatte.
@@ -1223,35 +1287,38 @@ Antworte nur mit JSON in genau dieser Form:
 {"found":true,"artist":"","title":"","year":1977,"label":"","catno":"","country":"","genre":"Rock","barcode":"","confidence":"hoch"}
 "year" ist das Jahr der Erstveröffentlichung, falls die Pressung nicht erkennbar ist. "confidence" ist hoch, mittel oder niedrig.
 Wenn du das Album nicht erkennst: {"found":false} und fülle nur, was du lesen kannst.`;
-  const makeBody = thinking => ({ contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: prompt }] }],
-    generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens: 2048, ...(thinking ? { thinkingConfig: thinking } : {}) } });
-  const candidates = await geminiModels(), tried = new Set();
-  let r = null, discovered = false, keyBad = false;
-  while (candidates.length) {
-    const m = candidates.shift(); if (tried.has(m)) continue; tried.add(m);
+  // Gemma has no JSON mode and no thinking settings; the JSON is then cut out of the text.
+  const makeBody = (m, think) => ({ contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: prompt }] }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens, ...(isGemma(m) ? {} : { responseMimeType: "application/json" }), ...(think ? { thinkingConfig: think } : {}) } });
+  const models = (await geminiModelList()).filter(m => !gemOut().includes(m));
+  if (!models.length) throw new Error("gemday");
+  let keyBad = false, rate = false, badJson = false;
+  for (const m of models) {
     const think = S.settings.geminiNoThinkCfg === m ? null : thinkingFor(m);
-    r = await geminiCall(m, makeBody(think));
+    let r = await geminiCall(m, makeBody(m, think));
     if (!r.ok && r.status === 400) {
       const msg = await r.clone().text().catch(() => "");
       if (/API.?key/i.test(msg)) { keyBad = true; break; }
-      if (think) { r = await geminiCall(m, makeBody(null)); if (r.ok) Store.saveSettings({ ...S.settings, geminiNoThinkCfg: m }); }
+      if (think) { r = await geminiCall(m, makeBody(m, null)); if (r.ok) Store.saveSettings({ ...S.settings, geminiNoThinkCfg: m }); }
     }
-    if (r.ok) { if (S.settings.geminiModel !== m) Store.saveSettings({ ...S.settings, geminiModel: m }); break; }
+    if (r.ok) {
+      const out = gemJSON(await r.json());
+      if (out) { if (S.settings.geminiModel !== m) Store.saveSettings({ ...S.settings, geminiModel: m }); return out; }
+      badJson = true; continue; // unreadable answer: let the next model try
+    }
     if (r.status === 403) { keyBad = true; break; }
-    if (r.status === 429) break;
-    // Model missing, too slow or overloaded: try the next one.
-    if (!candidates.length && !discovered && r.status === 404) { discovered = true; const found = await geminiDiscoverModel().catch(() => null); if (found) candidates.push(found); }
+    if (r.status === 429) {
+      rate = true;
+      const msg = await r.text().catch(() => "");
+      if (/PerDay|per day|daily/i.test(msg)) markGemOut(m); // used up until tomorrow; a per-minute limit just moves on
+      continue;
+    }
+    if (r.status === 404) markGemOut(m); // model not offered to this key
   }
-  if (!r || !r.ok) {
-    if (keyBad) throw new Error("gemkey");
-    if (r && r.status === 429) throw new Error("gemrate");
-    throw new Error("gemhttp");
-  }
-  const j = await r.json();
-  const text = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("gemjson");
-  return JSON.parse(m[0]);
+  if (keyBad) throw new Error("gemkey");
+  if (rate) throw new Error(gemOut().length >= models.length ? "gemday" : "gemrate");
+  if (badJson) throw new Error("gemjson");
+  throw new Error("gemhttp");
 }
 function normalize(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9äöüß]/g, ""); }
 function chooseBest(results, g) {
@@ -1308,8 +1375,9 @@ async function autoFromCover(d) {
 
 function lookupErr(e) {
   if (e && e.message === "gemkey") return "Der Gemini-Schlüssel wurde nicht angenommen. Prüfe ihn unter Profil → Einstellungen.";
-  if (e && e.message === "gemrate") return "Das kostenlose Gemini-Limit ist für heute oder diese Minute erreicht. Versuche es etwas später noch einmal.";
-  if (e && (e.message === "gemhttp" || e.message === "gemjson")) return "Die Cover-Erkennung hat nicht geklappt. Versuche es noch einmal.";
+  if (e && e.message === "gemrate") return "Gerade waren es zu viele Erkennungen auf einmal. Warte eine Minute, dann geht es weiter.";
+  if (e && e.message === "gemday") return "Alle kostenlosen Gemini-Modelle sind für heute aufgebraucht. Morgen früh ab etwa 9 Uhr geht es wieder. Bis dahin: Name und Nummer im Suchfeld eintippen.";
+  if (e && (e.message === "gemhttp" || e.message === "gemjson")) return "Die Erkennung hat nicht geklappt. Versuche es noch einmal.";
   if (e && e.message === "token") return "Der Discogs-Token stimmt nicht. Prüfe ihn im Profil unter Einstellungen.";
   if (e && e.message === "rate") return "Discogs bremst gerade. Warte eine Minute und versuche es noch einmal.";
   if (!navigator.onLine) return "Keine Internetverbindung. Du kannst die Platte trotzdem selbst eintragen.";
@@ -1968,13 +2036,15 @@ async function onAvatar(file) {
 }
 $("#s-gemini-save").onclick = async () => {
   const k = $("#s-gemini").value.trim();
-  await Store.saveSettings({ ...S.settings, geminiKey: k, geminiModel: "" });
+  await Store.saveSettings({ ...S.settings, geminiKey: k, geminiModel: "", gemModels: null, gemOut: null });
   const st = $("#s-gemini-status"); st.hidden = false;
   if (!k) { st.className = "status"; st.textContent = "Schlüssel entfernt. Cover werden nicht mehr automatisch erkannt."; render(); return; }
   st.className = "status"; st.innerHTML = '<span class="spinner"></span><span>Teste Schlüssel …</span>';
   try {
-    const m = await geminiDiscoverModel();
-    st.className = "status ok"; st.textContent = m ? "Schlüssel funktioniert. Cover-Fotos werden jetzt automatisch erkannt." : "Schlüssel angenommen, aber kein passendes Modell gefunden.";
+    const list = await geminiModelList();
+    const n = list.length, lite = list.filter(m => /flash-lite|gemma/.test(m)).length;
+    st.className = "status ok";
+    st.textContent = `Schlüssel funktioniert. ${n} kostenlose Modelle verfügbar${lite ? `, davon ${lite} mit großem Tageskontingent` : ""}. Ist eines für heute aufgebraucht, nimmt die App automatisch das nächste.`;
   } catch (e) { st.className = "status warn"; st.textContent = e.message === "gemkey" ? "Der Schlüssel wurde nicht angenommen. Kopiere ihn noch einmal komplett." : lookupErr(e); }
   render();
 };
@@ -2070,6 +2140,7 @@ function hideRaw(sel) {
   if (sel === "#sheet-cedit") S.cdraft = null;
   if (sel === "#sheet-cdetail") S.cdetailId = null;
   if (sel === "#sheet-set") { S.setId = null; S.setData = null; }
+  if (sel === "#sheet-cbatch") { S.batch = null; S.batchIdx = null; }
   if (!stack.length || (stack.length === 1 && stack[0] === sel)) document.body.style.overflow = "";
 }
 function closeSheet() { if (stack.length) history.back(); }
@@ -2203,8 +2274,9 @@ const CardStore = {
 
 /* --- Recognising a card from a photo --- */
 const CARD_PROMPT = `Du bist Experte für Pokémon-Sammelkarten und bewertest Karten wie ein strenger Cardmarket-Händler.
-Das Foto zeigt die Vorderseite einer Pokémon-Karte (evtl. in einer Hülle, einem Toploader oder einem Grading-Slab).
-Lies genau ab:
+Das Foto zeigt die Vorderseite einer oder mehrerer Pokémon-Karten (evtl. in Hüllen, Toploadern, Grading-Slabs oder einer Sammelalbum-Seite).
+Gib JEDE Karte an, deren Vorderseite gut sichtbar ist, in Lesereihenfolge (links oben nach rechts unten). Bei mehreren Karten halte die Zustands-Notizen sehr kurz.
+Lies für jede Karte genau ab:
 - "name": Kartenname exakt wie gedruckt (inkl. Zusätzen wie V, VMAX, VSTAR, ex, GX, EX).
 - "name_en": der englische Kartenname.
 - "language": Sprache der Karte als Code (de, en, fr, it, es, pt, ja, ko, zh).
@@ -2216,8 +2288,8 @@ Schätze den Zustand nach Cardmarket-Skala: "MT" (Mint), "NM" (Near Mint), "EX" 
 Prüfe dafür Zentrierung (Ränder links/rechts und oben/unten gleich breit?), Ecken (weiß, abgestoßen, rund?), Kanten (Abrieb, weiße Stellen) und Oberfläche (Kratzer, Knicke, Dellen, Abdrücke, Verfärbung). Wenn du etwas wegen Hülle oder Spiegelung nicht sicher beurteilen kannst, schreib das dazu.
 Steckt die Karte in einem Grading-Slab (PSA, BGS, CGC, TAG …), gib Firma und Note bei "graded" an.
 Antworte nur mit JSON genau in dieser Form:
-{"found":true,"name":"","name_en":"","language":"de","number":"","total":"","set_name":"","set_code":"","rarity":"","variant":"normal","condition":"NM","condition_notes":{"Zentrierung":"","Ecken":"","Kanten":"","Oberfläche":""},"condition_summary":"","graded":{"company":"","grade":""},"confidence":"hoch"}
-Alle Texte auf Deutsch, kurz. "confidence" ist hoch, mittel oder niedrig. Wenn keine Pokémon-Karte zu sehen ist: {"found":false}.`;
+{"cards":[{"name":"","name_en":"","language":"de","number":"","total":"","set_name":"","set_code":"","rarity":"","variant":"normal","condition":"NM","condition_notes":{"Zentrierung":"","Ecken":"","Kanten":"","Oberfläche":""},"condition_summary":"","graded":{"company":"","grade":""},"confidence":"hoch"}]}
+Alle Texte auf Deutsch, kurz. "confidence" ist hoch, mittel oder niedrig. Wenn keine Pokémon-Karte zu sehen ist: {"cards":[]}.`;
 
 function cresStatus(kind, text) {
   const el = $("#cres-status");
@@ -2238,10 +2310,14 @@ async function scanCard(file) {
   cresStatus("busy", "Erkenne die Karte und ihren Zustand …");
   openSheet("#sheet-cres", { replace: true });
   if (!gemKey()) { cresStatus("warn", "Für die Karten-Erkennung brauchst du den kostenlosen Gemini-Schlüssel (Profil → Einstellungen). Bis dahin: Name und Nummer im Suchfeld eintippen."); return; }
-  let blob, g;
-  try { blob = await shrink(file, 1600, 0.9); g = await geminiIdentify(blob, CARD_PROMPT, 1280); }
+  let blob, out;
+  try { blob = await shrink(file, 1800, 0.9); out = await geminiIdentify(blob, CARD_PROMPT, 1600, 8192); }
   catch (e) { cresStatus("warn", lookupErr(e)); return; }
-  if (!g || g.found === false || !(g.name || g.name_en)) { cresStatus("warn", "Ich konnte keine Karte erkennen. Fotografiere die Vorderseite gerade von oben, scharf und ohne Spiegelung."); return; }
+  // One request reads every card on the photo (a whole binder page counts as one request).
+  const found = (Array.isArray(out && out.cards) ? out.cards : out && (out.name || out.name_en) ? [out] : []).filter(x => x && (x.name || x.name_en));
+  if (!found.length) { cresStatus("warn", "Ich konnte keine Karte erkennen. Fotografiere die Vorderseite gerade von oben, scharf und ohne Spiegelung."); return; }
+  if (found.length > 1) { startBatch(found); return; }
+  const g = found[0];
   S.cscan = { g, blob };
   const label = `${g.name || g.name_en}${g.number ? " · " + g.number + (g.total ? "/" + g.total : "") : ""}`;
   $("#cres-title").textContent = label;
@@ -2335,20 +2411,10 @@ async function pickCardNow(id, g, opts) {
   let c;
   try { c = await tcgCard(id); } catch (e) { if (opts.replace) cresStatus("warn", lookupErr(e)); else toast(lookupErr(e)); return; }
   if (!c) { if (opts.replace) cresStatus("warn", "Diese Karte konnte nicht geladen werden. Versuch es noch einmal."); else toast("Diese Karte konnte nicht geladen werden."); return; }
-  const extra = {};
-  if (g) {
-    if (CVAR[g.variant]) extra.variant = g.variant;
-    if (CCOND[g.condition]) extra.condition = g.condition;
-    if (CLANG[g.language]) extra.cardLang = g.language;
-    // Gemini sometimes sends the notes as one sentence instead of an object.
-    const cn = g.condition_notes;
-    const notes = cn && typeof cn === "object" ? Object.entries(cn).filter(([, v]) => v && typeof v !== "object").map(([k, v]) => [k, String(v)]) : null;
-    if (notes && notes.length) extra.condNotes = Object.fromEntries(notes);
-    if (g.condition_summary || typeof cn === "string") extra.condSummary = String(g.condition_summary || cn);
-    if (g.graded && g.graded.company && !/^(null|none|keine?|nein|n\/?a|-)$/i.test(String(g.graded.company).trim())) extra.graded = { company: String(g.graded.company).toUpperCase(), grade: String(g.graded.grade || "") };
-  }
-  const d = cardDraftFrom(c, extra);
+  const d = cardDraftFrom(c, extraFromScan(g));
   if (g && S.cscan && S.cscan.g === g) d._blob = S.cscan.blob;
+  // Picked for a row of a multi-card scan: saving marks that row as done.
+  if (S.batch && S.batchIdx != null && S.batch.rows[S.batchIdx] && S.batch.rows[S.batchIdx].g === g) d._batchRow = S.batchIdx;
   openCardEditor(d, opts);
 }
 
@@ -2425,25 +2491,110 @@ $("#ce-price").onclick = async () => {
     applyCardPrice(d); fillCard();
   } catch (e) { $("#ce-pricehint").textContent = lookupErr(e); }
 };
-$("#ce-form").addEventListener("submit", async e => {
-  e.preventDefault(); readCard();
-  const d = S.cdraft; if (!d) return;
+// Saves a draft; the same card in the same state already there is just counted up. Returns the message to show.
+async function saveCardDraft(d) {
   const wasNew = !!d._new;
-  // Same card in the same state already there: just count it up.
-  if (wasNew && !d.graded) {
+  if (wasNew && !(d.graded && d.graded.company)) {
     const same = S.cards.find(x => x.tcgId === d.tcgId && x.list === d.list && x.variant === d.variant && x.condition === d.condition && (x.cardLang || "de") === d.cardLang && !(x.graded && x.graded.company));
     if (same) {
-      await CardStore.save({ ...same, qty: qtyOf(same) + qtyOf(d), updatedAt: new Date().toISOString() });
-      closeSheet(); toast(`Hattest du schon – jetzt ×${qtyOf(same) + qtyOf(d)}`); return;
+      const q = qtyOf(same) + qtyOf(d);
+      await CardStore.save({ ...same, qty: q, updatedAt: new Date().toISOString() });
+      return `Hattest du schon – jetzt ×${q}`;
     }
   }
   if (d._blob) { try { d.photoBlobId = await saveBlob(await shrink(d._blob, 1000, 0.85)); } catch {} }
   d.updatedAt = new Date().toISOString();
   await CardStore.save(d);
-  closeSheet();
-  toast(wasNew ? (d.list === "wishlist" ? "Auf die Kartenwunschliste gesetzt" : "Karte gespeichert") : "Gespeichert");
+  return wasNew ? (d.list === "wishlist" ? "Auf die Kartenwunschliste gesetzt" : "Karte gespeichert") : "Gespeichert";
+}
+$("#ce-form").addEventListener("submit", async e => {
+  e.preventDefault(); readCard();
+  const d = S.cdraft; if (!d) return;
+  const wasNew = !!d._new, row = d._batchRow != null && S.batch ? S.batch.rows[d._batchRow] : null;
+  const msg = await saveCardDraft(d);
+  closeSheet(); toast(msg);
+  if (row) { row.saved = true; row.on = false; row.d = d; renderBatch(); return; }
   if (wasNew && !S.setId) { S.cview = d.list === "wishlist" ? "wish" : "collection"; if (S.view !== "cards") setView("cards"); else render(); }
 });
+
+/* --- Several cards from one photo (e.g. a binder page) --- */
+function extraFromScan(g) {
+  const extra = {};
+  if (!g) return extra;
+  if (CVAR[g.variant]) extra.variant = g.variant;
+  if (CCOND[g.condition]) extra.condition = g.condition;
+  if (CLANG[g.language]) extra.cardLang = g.language;
+  // Gemini sometimes sends the notes as one sentence instead of an object.
+  const cn = g.condition_notes;
+  const notes = cn && typeof cn === "object" ? Object.entries(cn).filter(([, v]) => v && typeof v !== "object").map(([k, v]) => [k, String(v)]) : null;
+  if (notes && notes.length) extra.condNotes = Object.fromEntries(notes);
+  if (g.condition_summary || typeof cn === "string") extra.condSummary = String(g.condition_summary || cn);
+  if (g.graded && g.graded.company && !/^(null|none|keine?|nein|n\/?a|-)$/i.test(String(g.graded.company).trim())) extra.graded = { company: String(g.graded.company).toUpperCase(), grade: String(g.graded.grade || "") };
+  return extra;
+}
+async function startBatch(list) {
+  const b = S.batch = { rows: list.slice(0, 24).map(g => ({ g, status: "search", on: false, saved: false })) };
+  S.batchIdx = null;
+  openSheet("#sheet-cbatch", { replace: true });
+  renderBatch();
+  await pool(b.rows, 3, async row => {
+    try {
+      const res = await findCards(row.g);
+      row.list = res;
+      const top = res[0];
+      const c = top ? await tcgCard(top.c.id) : null;
+      if (c) {
+        row.d = cardDraftFrom(c, extraFromScan(row.g));
+        row.status = top.sc >= 18 && (!res[1] || res[1].sc < top.sc) ? "sure" : "check";
+        row.on = row.status === "sure";
+      } else row.status = "none";
+    } catch { row.status = "none"; }
+    if (S.batch === b) renderBatch();
+  });
+}
+function renderBatch() {
+  const b = S.batch; if (!b) return;
+  const rows = b.rows, ready = rows.filter(r => r.on && !r.saved && r.d), searching = rows.filter(r => r.status === "search").length;
+  $("#cb-title").textContent = `${rows.length} Karten erkannt`;
+  $("#cb-hint").textContent = searching ? `Suche noch ${searching} ${searching === 1 ? "Karte" : "Karten"} in allen Sets …` : "Sichere Treffer sind schon angehakt. „Bitte prüfen“ heißt: Nummer oder Set waren nicht eindeutig – tippe drauf, um die richtige Karte zu wählen.";
+  $("#cb-list").innerHTML = rows.map((r, i) => {
+    const d = r.d, g = r.g, name = d ? d.name : (g.name || g.name_en || "?");
+    const sub = d ? `${d.setName} · ${d.number}${d.total ? "/" + d.total : ""}` : [g.number && g.number + (g.total ? "/" + g.total : ""), g.set_name].filter(Boolean).join(" · ");
+    const st = r.saved ? "Gespeichert" : r.status === "search" ? "sucht …" : r.status === "check" ? "Bitte prüfen" : r.status === "none" ? "Nicht gefunden – tippen zum Suchen" : "";
+    return `<div class="cb-row ${r.status}${r.saved ? " saved" : ""}" style="--i:${Math.min(i, 12)}">
+      <button type="button" class="cb-check" data-bt="${i}" aria-pressed="${!!(r.on && !r.saved)}" ${!d || r.saved ? "disabled" : ""} aria-label="${esc(name)} übernehmen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+      <button type="button" class="cb-main" data-be="${i}" ${r.saved || r.status === "search" ? "disabled" : ""}><span class="mini-card">${d ? cardImgHTML(d) : `<div class="pimg"><span class="pimg-ph">?</span></div>`}</span>
+        <span class="tx"><b>${esc(name)}</b><span>${esc(sub)}</span>${st ? `<span class="cb-st">${esc(st)}</span>` : ""}</span>
+        <span class="cb-r">${d ? `<span class="badge">${esc(d.graded && d.graded.company ? d.graded.company + " " + d.graded.grade : d.condition)}</span><span class="p">${fmtMoney(d.value)}</span>` : ""}</span></button></div>`;
+  }).join("");
+  const btn = $("#cb-add");
+  btn.disabled = !ready.length;
+  btn.textContent = ready.length ? `${ready.length} ${ready.length === 1 ? "Karte" : "Karten"} hinzufügen` : rows.every(r => r.saved || !r.d) && !searching ? "Fertig" : "Karten zum Hinzufügen anhaken";
+  if (!ready.length && !searching && rows.every(r => r.saved || !r.d)) btn.disabled = false;
+  $("#cb-list").querySelectorAll("[data-bt]").forEach(x => x.onclick = () => { const r = rows[+x.dataset.bt]; r.on = !r.on; renderBatch(); });
+  $("#cb-list").querySelectorAll("[data-be]").forEach(x => x.onclick = () => editBatchRow(+x.dataset.be));
+}
+function editBatchRow(i) {
+  const r = S.batch && S.batch.rows[i]; if (!r) return;
+  S.batchIdx = i; S.cres = r.list || []; S.cresG = r.g;
+  if (r.d && r.status === "sure") { openCardEditor({ ...r.d, _batchRow: i }); return; }
+  // Unsure or not found: show all candidates to pick from (or a hint to search by hand).
+  $("#cres-list").innerHTML = ""; $("#cres-title").textContent = r.g.name || r.g.name_en || "Welche Karte?";
+  openSheet("#sheet-cres");
+  showCardResults(S.cres, r.g, false);
+}
+$("#cb-add").onclick = async () => {
+  const b = S.batch; if (!b) return;
+  const rows = b.rows.filter(r => r.on && !r.saved && r.d);
+  if (!rows.length) { closeSheet(); return; }
+  const btn = $("#cb-add"); btn.disabled = true;
+  for (const r of rows) { btn.textContent = `Speichere ${rows.indexOf(r) + 1} von ${rows.length} …`; await saveCardDraft(r.d); r.saved = true; r.on = false; }
+  const left = b.rows.filter(r => !r.saved).length;
+  toast(`${rows.length} ${rows.length === 1 ? "Karte" : "Karten"} gespeichert${left ? ` – ${left} noch offen` : ""}`);
+  if (left) { renderBatch(); return; }
+  closeSheet();
+  S.cview = rows[0].d.list === "wishlist" ? "wish" : "collection"; if (S.view !== "cards") setView("cards"); else render();
+};
 
 /* --- Card detail --- */
 function openCardDetail(id) { S.cdetailId = id; refreshCardDetail(true); }
