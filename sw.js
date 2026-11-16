@@ -5,7 +5,7 @@
 // storage as roughly 7-9 MB, however small the picture is. Caching card images that way filled the app's
 // storage within a few set views, saving then failed and Chrome wiped the app's whole storage (records,
 // cards, settings) to make room. Pictures are left to the browser's normal image cache, which doesn't count.
-const CACHE = "plattenkiste-v23";
+const CACHE = "plattenkiste-v24";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 
 self.addEventListener("install", e => {

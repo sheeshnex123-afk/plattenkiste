@@ -460,7 +460,12 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .pimg::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
 .pimg:has(img.in)::before { display: none; }
 @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
-.pimg-ph { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 12px; color: var(--muted); }
+.pimg-ph { position: absolute; inset: 0; display: grid; place-content: center; gap: 4px; padding: 8px; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 12px; color: var(--muted); line-height: 1.2; overflow-wrap: anywhere; }
+.pimg-ph small { font-family: var(--f-body); font-size: 10.5px; font-weight: 700; opacity: .8; }
+/* No picture anywhere: a drawn card instead of an empty box */
+.pimg.noimg::before { display: none; }
+.pimg.noimg { background: radial-gradient(circle at 50% 42%, transparent 0 14%, rgba(255,255,255,.55) 14.5% 16%, transparent 16.5%), linear-gradient(transparent 41%, rgba(255,255,255,.4) 41% 43%, transparent 43%), var(--dusk); box-shadow: inset 0 0 0 4px rgba(255,255,255,.55), var(--shadow); }
+.pimg.noimg .pimg-ph { color: #fff; text-shadow: 0 1px 4px rgba(40,20,80,.45); align-content: end; padding-bottom: 14%; }
 .pimg::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(125deg, transparent 30%, rgba(255,255,255,.22) 45%, transparent 60%); background-size: 250% 250%; background-position: 120% 0; transition: background-position .6s ease; }
 .pcard:active .pimg { transform: scale(.96) rotate(-1deg); }
 .pcard:active .pimg::after { background-position: -20% 0; }
@@ -571,6 +576,9 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .cm-stats span { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
 .cm-stats b { font-size: 14px; font-variant-numeric: tabular-nums; }
 .cd-photo { width: 100%; border-radius: 14px; display: block; }
+.cp-info { display: grid; gap: 16px; animation: rise .35s cubic-bezier(.2,.7,.2,1); }
+.cp-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cp-nav .icon-btn:disabled { opacity: .3; }
 .mini-card { width: 40px; flex: none; }
 .mini-card .pimg { border-radius: 4px; }
 
@@ -960,6 +968,14 @@ body.amb-on .amb { animation: breathe 2.2s ease-in-out infinite alternate; }
   <div class="wrap">
     <div class="sheet-head"><h2 id="set-title">Set</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="sheet-body" id="set-body"></div>
+  </div>
+</section>
+
+<!-- Pokémon cards: big preview of any card (also ones you don't have yet) -->
+<section class="sheet" id="sheet-cprev" hidden aria-label="Kartenvorschau">
+  <div class="wrap">
+    <div class="sheet-head"><span class="eyebrow" id="cp-where">Vorschau</span><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body" id="cp-body"></div>
   </div>
 </section>
 
@@ -2236,6 +2252,8 @@ function openSheet(sel, { replace } = {}) {
     stack.push(sel);
   }
   const el = $(sel); el.hidden = false; el.scrollTop = 0; document.body.style.overflow = "hidden";
+  // The newest sheet lies on top, whatever its place in the page (a card opened from a set used to open behind the set).
+  if (el.classList.contains("sheet")) el.style.zIndex = 30 + stack.indexOf(sel);
 }
 function hideRaw(sel) {
   $(sel).hidden = true;
@@ -2334,7 +2352,8 @@ function ptcgIds(id) {
   const out = [], a = String(id).replace(/^(sv|me)0(\d)/, "$1$2");
   const mc = a.match(/^20(\d\d)(bw|xy|sm|swsh|sv)$/); if (mc) out.push("mcd" + mc[1]);
   if (a === "cel25cc") out.push("cel25c");
-  out.push(a.replace(".5", "pt5"), a.replace(".", ""));
+  // sv/swsh12 half-sets are "…pt5" there, older ones just drop the dot (sm7.5 → sm75).
+  if (/^(sv|swsh12)/.test(a)) out.push(a.replace(".5", "pt5"), a.replace(".", "")); else out.push(a.replace(".", ""), a.replace(".5", "pt5"));
   return [...new Set(out)];
 }
 function setLogoChain(s) {
@@ -2356,8 +2375,7 @@ function setLogoImg(s, cls = "", lazy = true) {
   return `<img class="${cls}${first.endsWith("#sym") ? " sym" : ""}" src="${esc(first)}" data-alt="${esc(chain.slice(1).join("|"))}" alt="" ${lazy ? 'loading="lazy"' : ""} onload="pkLogoCheck(this)" onerror="pkLogoFallback(this)">`;
 }
 // pokemontcg.io answers an unknown set with a card back (upright) instead of an error; set logos are landscape.
-window.pkLogoCheck = img => { if (/pokemontcg\.io/.test(img.src) && img.naturalHeight > img.naturalWidth * 1.1) pkLogoFallback(img); };
-// Next address in the chain; when none is left, the set's initials show instead.
+window.pkLogoCheck = img => { if (/pokemontcg\.io/.test(img.src) && img.naturalHeight > img.naturalWidth * 1.1) pkLogoFallback(img); };// Next address in the chain; when none is left, the set's initials show instead.
 window.pkLogoFallback = img => {
   const alts = (img.dataset.alt || "").split("|").filter(Boolean);
   if (!alts.length) { img.hidden = true; const ph = img.nextElementSibling; if (ph && ph.classList.contains("set-ph")) ph.hidden = false; return; }
@@ -2440,16 +2458,35 @@ function cardImgBase(c) {
 }
 window.pkImgFallback = img => {
   const alts = (img.dataset.alt || "").split("|").filter(Boolean);
-  if (!alts.length) { img.hidden = true; return; }
+  if (!alts.length) { img.hidden = true; if (img.parentElement) img.parentElement.classList.add("noimg"); return; }
   img.dataset.alt = alts.slice(1).join("|"); img.src = alts[0];
 };
 // eager: the first images of a list load right away with high priority instead of waiting for "lazy".
-function cardImgHTML(c, q = "low", eager = false) {
-  const base = cardImgBase(c);
-  const m = base && base.match(/^https:\/\/assets\.tcgdex\.net\/([a-z-]+)\/(.+)$/);
-  const alts = m && isAsia(m[1]) ? ["ja", "zh-tw", "ko", "zh-cn", "th", "id"].filter(l => l !== m[1]).map(l => tcgImg(`https://assets.tcgdex.net/${l}/${m[2]}`, q)).join("|") : "";
-  return `<div class="pimg"><span class="pimg-ph">${esc(c.name || "?")}</span>${base ? `<img src="${esc(tcgImg(base, q))}" alt="" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" draggable="false" data-alt="${esc(alts)}" onload="this.classList.add('in')" onerror="pkImgFallback(this)">` : ""}</div>`;
+// Many German cards have no scan (all old sets, trainer galleries, energies …) and some English ones neither,
+// so a picture is a chain of addresses: German, English, PNG instead of WebP, then pokemontcg.io.
+function cardImgChain(c, q = "low") {
+  const base = cardImgBase(c), urls = [];
+  const m = base && base.match(/^https:\/\/assets\.tcgdex\.net\/([a-z-]+)\/([^/]+)\/([^/]+)\/([^/]+)$/);
+  if (base) urls.push(tcgImg(base, q));
+  if (m && isAsia(m[1])) {
+    for (const l of ["ja", "zh-tw", "ko", "zh-cn", "th", "id"]) if (l !== m[1]) urls.push(tcgImg(`https://assets.tcgdex.net/${l}/${m[2]}/${m[3]}/${m[4]}`, q));
+    return urls;
+  }
+  const setId = (m && m[3]) || c.setId || setOfId(c.tcgId || c.id), local = String((m && m[4]) || c.localId || c.number || "");
+  if (m && m[1] !== "en") urls.push(tcgImg(`https://assets.tcgdex.net/en/${m[2]}/${m[3]}/${m[4]}`, q));
+  if (base) urls.push(`${base}/${q}.png`);
+  if (setId && local) { const n = local.replace(/^0+(?=\d)/, ""); for (const p of ptcgIds(setId)) urls.push(`https://images.pokemontcg.io/${p}/${n}${q === "high" ? "_hires" : ""}.png`); }
+  return [...new Set(urls)];
 }
+function cardImgHTML(c, q = "low", eager = false) {
+  const chain = cardImgChain(c, q), num = c.localId || c.number || "";
+  return `<div class="pimg"><span class="pimg-ph"><b>${esc(c.name || "?")}</b>${num ? `<small>${esc(num)}</small>` : ""}</span>${chain.length ? `<img src="${esc(chain[0])}" alt="" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" draggable="false" data-alt="${esc(chain.slice(1).join("|"))}" onload="pkImgLoaded(this)" onerror="pkImgFallback(this)">` : ""}</div>`;
+}
+// pokemontcg.io answers a card it doesn't know with a 640×892 card back instead of an error.
+window.pkImgLoaded = img => {
+  if (/pokemontcg\.io/.test(img.src) && img.naturalWidth === 640 && img.naturalHeight === 892) { pkImgFallback(img); return; }
+  img.classList.add("in");
+};
 async function tcgCard(id, lang) {
   if (isAsia(lang)) { const c = await tcg(lang, "/cards/" + encodeURIComponent(id)); if (c) c._lang = lang; return c; }
   let c = await tcg("de", "/cards/" + encodeURIComponent(id)).catch(() => null), l = "de";
@@ -3079,17 +3116,66 @@ function renderSet() {
       : shown.length ? `<div class="pgrid set-grid">${shown.map((c, i) => `<button class="pcard ${own.has(c.id) ? "own" : "miss"}" data-sc="${esc(c.id)}">${cardImgHTML({ image: c.image, id: c.id, localId: c.localId, name: c.name, setId: S.setId, serie, tcgLang: S.setLang }, "low", i < 12)}
       ${tileInfo(c.id)}${own.get(c.id) > 1 ? `<span class="qty">×${own.get(c.id)}</span>` : ""}${wish.has(c.id) ? `<span class="wishmark" aria-label="Auf der Wunschliste">♥</span>` : ""}<span class="pc-n">${esc(c.localId)}</span></button>`).join("")}</div>`
       : `<p class="muted" style="text-align:center">${f === "have" ? "Aus diesem Set hast du noch keine Karte." : "Du hast alle Karten dieses Sets!"}</p>`}
-    <p class="hint">${f === "have" ? "Tippe auf eine Karte für alle Details, Preise und dein Foto." : "Deine Karten leuchten – tippe drauf für alle Details. Tippe auf eine fehlende Karte, um sie hinzuzufügen oder auf die Wunschliste zu setzen."}</p>`;
+    <p class="hint">${f === "have" ? "Tippe auf eine Karte für alle Details, Preise und dein Foto." : "Deine Karten leuchten – tippe drauf für alle Details. Tippe auf eine fehlende Karte, um sie groß mit Preisen zu sehen. Gedrückt halten zeigt jede Karte groß."}</p>`;
   $("#set-body").querySelectorAll("[data-sf]").forEach(b => b.onclick = () => { S.setFilter = b.dataset.sf; renderSet(); });
   $("#set-body").querySelectorAll(".own-row[data-cid]").forEach(b => b.onclick = () => openCardDetail(b.dataset.cid));
-  $("#set-body").querySelectorAll("[data-sc]").forEach(b => b.onclick = () => {
-    const rid = ownRec.get(b.dataset.sc);
-    // Several copies (e.g. different conditions): show them all in the list instead of just the first.
-    if (rid && (ownAll.get(b.dataset.sc) || []).length > 1) { S.setFilter = "have"; renderSet(); $("#sheet-set").scrollTop = 0; toast("Diese Karte hast du mehrfach – hier sind alle Exemplare."); return; }
-    if (rid) { openCardDetail(rid); return; }
-    S.cres = null; S.caddTarget = "collection";
-    pickCard(b.dataset.sc, null, {}, S.setLang);
+  // Tap: your own card's details, or the big preview of a missing one. Hold: the big preview of any card.
+  $("#set-body").querySelectorAll("[data-sc]").forEach(b => {
+    b.onclick = () => {
+      const rid = ownRec.get(b.dataset.sc);
+      // Several copies (e.g. different conditions): show them all in the list instead of just the first.
+      if (rid && (ownAll.get(b.dataset.sc) || []).length > 1) { S.setFilter = "have"; renderSet(); $("#sheet-set").scrollTop = 0; toast("Diese Karte hast du mehrfach – hier sind alle Exemplare."); return; }
+      if (rid) { openCardDetail(rid); return; }
+      openCardPreview(b.dataset.sc, S.setLang);
+    };
+    attachLongPress(b, () => openCardPreview(b.dataset.sc, S.setLang));
   });
+}
+
+/* --- Big preview of any card: picture, prices, add to collection or wishlist --- */
+let prevSeq = 0;
+async function openCardPreview(id, lang) {
+  const seq = ++prevSeq, list = (S.setData && S.setData.cards) || [], i = list.findIndex(c => c.id === id), brief = list[i] || { id };
+  const s = (lang ? asiaSetOf(lang, S.setId) : setById(S.setId)) || {};
+  const owned = S.cards.filter(c => c.tcgId === id && c.list !== "wishlist" && (lang ? c.tcgLang === lang : !isAsia(c.tcgLang)));
+  const wished = S.cards.some(c => c.tcgId === id && c.list === "wishlist");
+  // The sharp picture loads over the small one the set view already has, so the card shows at once.
+  const img = c => { const k = { image: c.image, id: c.id, localId: c.localId, name: c.name, setId: S.setId || setOfId(c.id), serie: s.serie, tcgLang: lang }, low = cardImgChain(k, "low")[0];
+    return cardImgHTML(k, "high", true).replace('<div class="pimg">', `<div class="pimg"${low ? ` style="background:url('${esc(low)}') center/cover"` : ""}>`); };
+  const nav = `<div class="cp-nav"><button class="icon-btn" id="cp-prev" aria-label="Vorherige Karte"${i > 0 ? "" : " disabled"}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <span class="muted mono">${i >= 0 ? `${i + 1} / ${list.length}` : ""}</span>
+    <button class="icon-btn" id="cp-next" aria-label="Nächste Karte"${i >= 0 && i < list.length - 1 ? "" : " disabled"}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>`;
+  const stage = `<div class="holo-stage"><div class="holo" id="cp-holo">${img(brief)}<span class="holo-shine"></span><span class="holo-glare"></span></div></div>`;
+  $("#cp-where").textContent = s.name || "Vorschau";
+  $("#cp-body").innerHTML = stage + `<div class="d-title"><h2>${esc(brief.name || "")}</h2><div class="a">${esc(s.name || "")} · ${esc(brief.localId || "")}${s.official ? "/" + s.official : ""}</div></div>
+    <div class="cp-info" id="cp-info"><div class="status"><span class="spinner"></span>Lade Preise …</div></div>${nav}`;
+  if (stack[stack.length - 1] !== "#sheet-cprev") openSheet("#sheet-cprev");
+  holoTilt($("#cp-holo")); bindNav();
+  function bindNav() {
+    const p = $("#cp-prev"), n = $("#cp-next");
+    if (p) p.onclick = () => i > 0 && openCardPreview(list[i - 1].id, lang);
+    if (n) n.onclick = () => i < list.length - 1 && openCardPreview(list[i + 1].id, lang);
+  }
+  let c = null;
+  try { c = await tcgCard(id, lang); } catch {}
+  if (seq !== prevSeq || stack[stack.length - 1] !== "#sheet-cprev") return;
+  const cm = cmOf(c) || {}, vars = Object.keys(CVAR).filter(k => c && c.variants && c.variants[k]);
+  const priceRows = [["Trend", cm.trend], ["Ø 30 Tage", cm.avg30], ["Ab", cm.low], ["Reverse Holo", cm["trend-holo"]]].filter(x => x[1] != null);
+  const main = cmBase(cm, vars.includes("normal") || !vars.length ? "normal" : vars[0]);
+  const rare = /holo|rare|selten|illustration|ultra|hyper|secret|vmax|vstar|\bex\b|gx/i.test((c && c.rarity) || "") || vars.includes("holo");
+  $("#cp-holo").classList.toggle("shiny", rare);
+  $("#cp-info").innerHTML = `
+    <div class="chips">${[owned.length ? `Hast du ×${cardsQty(owned)}` : "Fehlt dir noch", wished ? "♥ Auf der Wunschliste" : null, c && c.rarity, ...vars.map(v => CVAR[v])].filter(Boolean).map((x, k) => `<span class="badge"${k === 0 && owned.length ? ' style="background:var(--dusk);color:#fff"' : ""}>${esc(x)}</span>`).join("")}</div>
+    <div class="d-value"><div class="eyebrow">Cardmarket · Near Mint</div><div class="v">${main != null ? fmtMoney(main) : "–"}</div>
+      ${priceRows.length ? `<div class="cm-stats">${priceRows.slice(0, 3).map(([k, v]) => `<div><span>${k}</span><b>${fmtMoney(v)}</b></div>`).join("")}</div>${priceRows[3] ? `<div class="r" style="margin-top:8px">Reverse Holo: ${fmtMoney(priceRows[3][1])}</div>` : ""}` : `<div class="r">${c ? "Für diese Karte gibt es keinen Cardmarket-Preis." : "Preise konnten nicht geladen werden. Bist du online?"}</div>`}</div>
+    ${c ? `<div class="btn-row"><button class="btn" id="cp-wish">${wished ? "Nochmal auf die Wunschliste" : "Auf die Wunschliste"}</button><button class="btn primary" id="cp-add">Zur Sammlung hinzufügen</button></div>` : ""}
+    ${owned.length ? `<button class="btn" id="cp-mine">Meine Karte ansehen</button>` : ""}
+    <a class="btn" href="https://www.cardmarket.com/de/Pokemon/Products/Search?searchString=${encodeURIComponent((c && c.name) || brief.name || "")}" target="_blank" rel="noopener">Auf Cardmarket ansehen</a>`;
+  const add = target => { S.cres = null; S.caddTarget = target; openCardEditor(cardDraftFrom(c), { replace: true }); };
+  const a = $("#cp-add"), w = $("#cp-wish"), m = $("#cp-mine");
+  if (a) a.onclick = () => add("collection");
+  if (w) w.onclick = () => add("wishlist");
+  if (m) m.onclick = () => { closeSheet(); setTimeout(() => openCardDetail(owned[0].id), 50); };
 }
 
 /* --- Background price refresh (every few days, quietly) --- */
