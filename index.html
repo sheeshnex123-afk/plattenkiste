@@ -11,6 +11,9 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://assets.tcgdex.net" crossorigin>
+<link rel="preconnect" href="https://api.tcgdex.net" crossorigin>
+<link rel="dns-prefetch" href="https://assets.tcgdex.net">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..800,0..100;1,9..144,300..800,0..100&family=DM+Sans:opsz,wght@9..40,400..700&display=swap">
 <style>
 /* Look: golden-hour record shop. Warm cream paper by day, espresso evening by night, sunset gradients, soft serif. */
@@ -327,7 +330,7 @@ h1, h2, h3 { font-family: var(--f-display); font-optical-sizing: auto; font-vari
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .6; }
 .pill.on { background: color-mix(in srgb, var(--sage) 22%, var(--surface)); color: color-mix(in srgb, var(--sage) 75%, var(--ink)); }
 
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 26px); z-index: 60; background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 99px; font-size: 14px; max-width: calc(100% - 32px); box-shadow: var(--shadow-lg); }
+.toast { pointer-events: none; /* never swallows a tap on a button underneath */ position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 26px); z-index: 60; background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 99px; font-size: 14px; max-width: calc(100% - 32px); box-shadow: var(--shadow-lg); }
 @media (min-width: 560px) { .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
 
 /* Tab switch: content glides in from the side of the tab you came from; a soft pill follows the active tab */
@@ -451,7 +454,12 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .pgrid.anim .pcard, #cres-list .pcard { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 35ms); }
 .pcard { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; -webkit-touch-callout: none; }
 .pimg { position: relative; width: 100%; aspect-ratio: 63 / 88; border-radius: var(--card-r); overflow: hidden; background: linear-gradient(160deg, var(--surface-2), var(--line)); box-shadow: var(--shadow); transition: transform .3s cubic-bezier(.2,.7,.2,1); }
-.pimg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.pimg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; opacity: 0; transition: opacity .25s ease; }
+.pimg img.in { opacity: 1; }
+/* Soft shimmer while the picture is still on its way */
+.pimg::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); background-size: 220% 100%; animation: shimmer 1.3s linear infinite; }
+.pimg:has(img.in)::before { display: none; }
+@keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 .pimg-ph { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 12px; color: var(--muted); }
 .pimg::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(125deg, transparent 30%, rgba(255,255,255,.22) 45%, transparent 60%); background-size: 250% 250%; background-position: 120% 0; transition: background-position .6s ease; }
 .pcard:active .pimg { transform: scale(.96) rotate(-1deg); }
@@ -2143,8 +2151,19 @@ function hideRaw(sel) {
   if (sel === "#sheet-cbatch") { S.batch = null; S.batchIdx = null; }
   if (!stack.length || (stack.length === 1 && stack[0] === sel)) document.body.style.overflow = "";
 }
-function closeSheet() { if (stack.length) history.back(); }
-window.addEventListener("popstate", () => { const top = stack.pop(); if (top) hideRaw(top); if (!stack.length) document.body.style.overflow = ""; });
+// Closes the top sheet right away instead of waiting for the browser's "back". Waiting made the app depend on
+// when (and whether) the phone delivers that event: a fast next tap could then close the wrong sheet.
+let skipPop = 0, skipTimer = 0;
+function closeSheet() {
+  if (!stack.length) return;
+  hideRaw(stack.pop()); if (!stack.length) document.body.style.overflow = "";
+  skipPop++; clearTimeout(skipTimer); skipTimer = setTimeout(() => { skipPop = 0; }, 1000);
+  history.back();
+}
+window.addEventListener("popstate", () => {
+  if (skipPop > 0) { skipPop--; return; } // the "back" we caused ourselves: the sheet is already closed
+  const top = stack.pop(); if (top) hideRaw(top); if (!stack.length) document.body.style.overflow = "";
+});
 document.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
 document.querySelectorAll(".tab[data-view]").forEach(t => t.onclick = () => setView(t.dataset.view));
 const VIEW_ORDER = { collection: 0, wishlist: 1, cards: 3, profile: 4 };
@@ -2165,7 +2184,10 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = fal
 //   marketNM, cm (Cardmarket price snapshot), condSummary, condNotes, photoBlobId, notes, addedAt, updatedAt}
 const TCG = "https://api.tcgdex.net/v2/";
 async function tcg(lang, path) {
-  const r = await fetch(TCG + lang + path);
+  // A hanging request on a bad mobile connection gives up after 15 s instead of blocking taps forever.
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
+  let r;
+  try { r = await fetch(TCG + lang + path, { signal: ctl.signal }); } finally { clearTimeout(t); }
   if (r.status === 404) return null;
   if (!r.ok) { const e = new Error("http"); e.status = r.status; throw e; }
   return r.json();
@@ -2216,9 +2238,10 @@ function cardImgBase(c) {
   const setId = c.setId || setOfId(c.tcgId || c.id), s = setById(setId), serie = c.serie || (s && s.serie);
   return serie ? `https://assets.tcgdex.net/en/${serie}/${setId}/${c.localId || c.number}` : "";
 }
-function cardImgHTML(c, q = "low") {
+// eager: the first images of a list load right away with high priority instead of waiting for "lazy".
+function cardImgHTML(c, q = "low", eager = false) {
   const base = cardImgBase(c);
-  return `<div class="pimg"><span class="pimg-ph">${esc(c.name || "?")}</span>${base ? `<img src="${esc(tcgImg(base, q))}" alt="" loading="lazy" draggable="false" onerror="this.hidden=true">` : ""}</div>`;
+  return `<div class="pimg"><span class="pimg-ph">${esc(c.name || "?")}</span>${base ? `<img src="${esc(tcgImg(base, q))}" alt="" ${eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} decoding="async" draggable="false" onload="this.classList.add('in')" onerror="this.hidden=true">` : ""}</div>`;
 }
 async function tcgCard(id) {
   let c = await tcg("de", "/cards/" + encodeURIComponent(id)).catch(() => null), lang = "de";
@@ -2263,7 +2286,8 @@ const CardStore = {
     const body = JSON.parse(JSON.stringify(c)); for (const k of Object.keys(body)) if (k.startsWith("_")) delete body[k];
     await IDB.put("cards", body);
     const i = S.cards.findIndex(x => x.id === body.id); if (i >= 0) S.cards[i] = body; else S.cards.push(body);
-    render(); if (S.cdetailId === body.id) refreshCardDetail(); if (S.setId) renderSet();
+    // The card is stored at this point; a display hiccup must not look like a failed save.
+    try { render(); if (S.cdetailId === body.id) refreshCardDetail(); if (S.setId) renderSet(); } catch (e) { console.error(e); }
     return body;
   },
   async remove(c) {
@@ -2345,14 +2369,14 @@ $("#cin-go").onclick = cardSearch;
 $("#cin-q").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); cardSearch(); } });
 
 async function findCards(q) {
-  await setIndex().catch(() => null);
   const langs = [...new Set([q.language, "de", "en"])].filter(l => ["de", "en", "fr", "it", "es", "pt"].includes(l));
   const names = [...new Set([q.name, q.name_en].filter(Boolean).map(s => String(s).trim()))];
   const found = new Map();
-  await Promise.all(langs.flatMap(l => names.map(async n => {
+  // Set list and name searches run at the same time (the set list used to be loaded first).
+  await Promise.all([setIndex().catch(() => null), ...langs.flatMap(l => names.map(async n => {
     const list = await tcg(l, "/cards?name=" + encodeURIComponent(n)).catch(() => null);
     for (const c of list || []) if (!found.has(c.id) || l === "de") found.set(c.id, c);
-  })));
+  }))]);
   const numK = normNum(q.number), tot = parseInt(q.total) || 0;
   // Name not found or not with this number: look the number up in every set of that size.
   if (numK && tot && ![...found.values()].some(c => normNum(c.localId) === numK)) {
@@ -2393,7 +2417,7 @@ function showCardResults(list, g, auto) {
   const top = list[0];
   if (auto && g && top.sc >= 18 && (!list[1] || list[1].sc < top.sc)) { pickCard(top.c.id, g); return; }
   cresStatus("ok", `${list.length} Treffer. Tippe auf deine Karte${g && g.number ? ` (Nummer ${g.number}${g.total ? "/" + g.total : ""})` : ""}.`);
-  box.innerHTML = list.map((x, i) => `<button class="pcard" data-ci="${i}" style="--i:${Math.min(i, 15)}">${cardImgHTML({ image: x.c.image, id: x.c.id, localId: x.c.localId, name: x.c.name })}
+  box.innerHTML = list.map((x, i) => `<button class="pcard" data-ci="${i}" style="--i:${Math.min(i, 15)}">${cardImgHTML({ image: x.c.image, id: x.c.id, localId: x.c.localId, name: x.c.name }, "low", i < 12)}
     <span class="pc-t">${esc(x.c.name)}</span><span class="pc-s">${esc(x.s ? x.s.name : setOfId(x.c.id))} · ${esc(x.c.localId)}${x.s && x.s.official ? "/" + x.s.official : ""}</span></button>`).join("");
   box.querySelectorAll("[data-ci]").forEach(b => b.onclick = () => pickCard(list[+b.dataset.ci].c.id, g));
 }
@@ -2419,7 +2443,7 @@ async function pickCardNow(id, g, opts) {
 }
 
 /* --- Editor --- */
-function openCardEditor(d, opts) { openSheet("#sheet-cedit", opts); S.cdraft = d; fillCard(); }
+function openCardEditor(d, opts) { openSheet("#sheet-cedit", opts); S.cdraft = d; $("#ce-form")._draft = d; fillCard(); }
 function fillCard() {
   const d = S.cdraft; if (!d) return;
   $("#ce-title").textContent = d._new ? (d.list === "wishlist" ? "Neuer Kartenwunsch" : "Neue Karte") : "Karte bearbeiten";
@@ -2507,12 +2531,30 @@ async function saveCardDraft(d) {
   await CardStore.save(d);
   return wasNew ? (d.list === "wishlist" ? "Auf die Kartenwunschliste gesetzt" : "Karte gespeichert") : "Gespeichert";
 }
+// Saving never fails silently: the button shows it is working, a hang ends after 15 s with a message,
+// and the draft is kept on the form so a stray "back" in between can't take it away.
+let savingCard = false;
 $("#ce-form").addEventListener("submit", async e => {
-  e.preventDefault(); readCard();
-  const d = S.cdraft; if (!d) return;
+  e.preventDefault();
+  if (savingCard) return;
+  const d = S.cdraft || $("#ce-form")._draft;
+  if (!d) { toast("Die Karte ist nicht mehr geladen. Öffne sie bitte noch einmal."); return; }
+  S.cdraft = d; readCard();
   const wasNew = !!d._new, row = d._batchRow != null && S.batch ? S.batch.rows[d._batchRow] : null;
-  const msg = await saveCardDraft(d);
-  closeSheet(); toast(msg);
+  const btn = $("#ce-form button[type=submit]");
+  savingCard = true; btn.disabled = true; btn.textContent = "Speichere …";
+  let msg;
+  try {
+    msg = await Promise.race([saveCardDraft(d), new Promise((_, rej) => setTimeout(() => rej(new Error("save-timeout")), 15000))]);
+  } catch (err) {
+    toast(err && err.message === "save-timeout"
+      ? "Speichern hängt: Die App ist wohl noch in einem zweiten Fenster offen (z. B. als Chrome-Tab). Schließ es und tippe nochmal auf Speichern."
+      : "Speichern hat nicht geklappt. Tippe bitte nochmal auf Speichern.");
+    return;
+  } finally { savingCard = false; btn.disabled = false; btn.textContent = "Speichern"; }
+  $("#ce-form")._draft = null;
+  if (stack[stack.length - 1] === "#sheet-cedit") closeSheet(); else { $("#sheet-cedit").hidden = true; }
+  toast(msg);
   if (row) { row.saved = true; row.on = false; row.d = d; renderBatch(); return; }
   if (wasNew && !S.setId) { S.cview = d.list === "wishlist" ? "wish" : "collection"; if (S.view !== "cards") setView("cards"); else render(); }
 });
@@ -2941,6 +2983,8 @@ async function loadCards() {
   } catch { S.cardsError = true; }
   render();
   if (S.cardsLoaded) setTimeout(() => refreshCardPrices(false).catch(() => {}), 8000);
+  // Have the set list ready before the first search (it is cached for a week).
+  setTimeout(() => setIndex().catch(() => {}), 2500);
 }
 // Shown instead of an empty list when loading failed: the data is still on the phone.
 function loadErrorHTML(kind) {
