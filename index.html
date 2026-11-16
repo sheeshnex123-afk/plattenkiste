@@ -2305,7 +2305,7 @@ function setIndex() {
   if (S.setIndex) return Promise.resolve(S.setIndex);
   return setIdxP || (setIdxP = (async () => {
     const cached = await IDB.get("kv", "tcgSets").catch(() => null);
-    if (cached && cached.v === 1 && Date.now() - cached.at < 7 * 864e5) { S.setIndex = cached; return cached; }
+    if (cached && cached.v === 2 && Date.now() - cached.at < 7 * 864e5) { S.setIndex = cached; return cached; }
     const [enSer, deSer] = await Promise.all([tcg("en", "/series"), tcg("de", "/series").catch(() => [])]);
     const deById = new Map((deSer || []).map(s => [s.id, s]));
     const series = (await Promise.all((enSer || []).filter(s => s.id !== "tcgp").map(async s => {
@@ -2319,7 +2319,7 @@ function setIndex() {
         }).reverse()
       };
     }))).filter(s => s.sets.length).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    const idx = { v: 1, at: Date.now(), series };
+    const idx = { v: 2, at: Date.now(), series };
     S.setIndex = idx; IDB.put("kv", idx, "tcgSets").catch(() => {});
     return idx;
   })().catch(e => { setIdxP = null; throw e; }));
@@ -2328,6 +2328,41 @@ function setById(id) {
   for (const s of (S.setIndex || {}).series || []) for (const x of s.sets) if (x.id === id) return { ...x, serie: s.id, serieName: s.name };
   return null;
 }
+// Set logos: TCGdex has no logo for many sets, and some only as PNG (e.g. German "Dunkelnacht"). So each logo is a chain
+// of addresses tried in turn: German logo, English logo, the logo from pokemontcg.io, the main set's logo, the set symbol.
+function ptcgIds(id) {
+  const out = [], a = String(id).replace(/^(sv|me)0(\d)/, "$1$2");
+  const mc = a.match(/^20(\d\d)(bw|xy|sm|swsh|sv)$/); if (mc) out.push("mcd" + mc[1]);
+  if (a === "cel25cc") out.push("cel25c");
+  out.push(a.replace(".5", "pt5"), a.replace(".", ""));
+  return [...new Set(out)];
+}
+function setLogoChain(s) {
+  if (!s) return [];
+  if (isAsia(s.lang)) return s.logo ? [s.logo + ".webp", s.logo + ".png"] : [];
+  const urls = [], add = base => { if (base) urls.push(base + ".webp", base + ".png"); };
+  if (s.logo) { add(s.logo); if (s.logo.includes("/de/")) add(s.logo.replace("/de/", "/en/")); }
+  for (const p of ptcgIds(s.id)) urls.push(`https://images.pokemontcg.io/${p}/logo.png`);
+  // Sub-sets (trainer gallery, shiny vault, energies, promos) borrow the main set's logo.
+  const parentId = /^(sve|svp)$/.test(s.id) ? "sv01" : /^(mee|mep)$/.test(s.id) ? "me01" : s.id.replace(/(tg|gg|sv|cc|c)$/, "");
+  const parent = parentId !== s.id && setById(parentId);
+  if (parent && parent.logo) add(parent.logo);
+  if (s.symbol) for (const u of [s.symbol + ".webp", s.symbol + ".png"]) urls.push(u + "#sym");
+  return [...new Set(urls)];
+}
+function setLogoImg(s, cls = "", lazy = true) {
+  const chain = setLogoChain(s); if (!chain.length) return "";
+  const first = chain[0];
+  return `<img class="${cls}${first.endsWith("#sym") ? " sym" : ""}" src="${esc(first)}" data-alt="${esc(chain.slice(1).join("|"))}" alt="" ${lazy ? 'loading="lazy"' : ""} onload="pkLogoCheck(this)" onerror="pkLogoFallback(this)">`;
+}
+// pokemontcg.io answers an unknown set with a card back (upright) instead of an error; set logos are landscape.
+window.pkLogoCheck = img => { if (/pokemontcg\.io/.test(img.src) && img.naturalHeight > img.naturalWidth * 1.1) pkLogoFallback(img); };
+// Next address in the chain; when none is left, the set's initials show instead.
+window.pkLogoFallback = img => {
+  const alts = (img.dataset.alt || "").split("|").filter(Boolean);
+  if (!alts.length) { img.hidden = true; const ph = img.nextElementSibling; if (ph && ph.classList.contains("set-ph")) ph.hidden = false; return; }
+  img.dataset.alt = alts.slice(1).join("|"); img.classList.toggle("sym", alts[0].endsWith("#sym")); img.src = alts[0];
+};
 
 // Asian editions (Japanese, Chinese, Korean …) are their own sets in TCGdex, with the code printed on the card
 // (e.g. "SV5M"). Their set lists are loaded only when needed and cached for two weeks.
@@ -3036,7 +3071,7 @@ function renderSet() {
       <span>${r.rarity ? esc(r.rarity) + " · " : ""}seit ${r.addedAt ? new Date(r.addedAt).toLocaleDateString("de-DE") : "–"}</span></span>
     <span class="own-r"><span class="badge">${esc(r.graded && r.graded.company ? r.graded.company + " " + r.graded.grade : r.condition || "")}</span>${qtyOf(r) > 1 ? `<span class="muted">×${qtyOf(r)}</span>` : ""}<span class="p">${fmtMoney(r.value != null ? r.value * qtyOf(r) : null)}</span></span></button>`).join("");
   $("#set-body").innerHTML = `
-    <div class="set-head">${d.logo || s.logo ? `<img class="set-logo" src="${esc((d.logo || s.logo) + ".webp")}" alt="" onerror="this.hidden=true">` : ""}
+    <div class="set-head">${setLogoImg({ ...s, id: s.id || S.setId, logo: d.logo || s.logo, symbol: s.symbol || d.symbol, lang: isAsia(S.setLang) ? S.setLang : "" }, "set-logo", false)}
       <div class="set-prog"><div class="set-nums"><b>${have}</b> von ${cards.length} Karten · ${pct} %</div><span class="trk"><span class="fill" style="width:${pct}%"></span></span>
       <span class="muted">${[d.releaseDate ? "Erschienen " + new Date(d.releaseDate).toLocaleDateString("de-DE", { month: "long", year: "numeric" }) : "", val ? "Wert " + fmtMoney(val) : ""].filter(Boolean).join(" · ")}</span></div></div>
     <div class="seg seg3" role="group" aria-label="Filter"><button data-sf="all" aria-pressed="${f === "all"}">Alle</button><button data-sf="miss" aria-pressed="${f === "miss"}">Fehlende</button><button data-sf="have" aria-pressed="${f === "have"}">Meine</button></div>
@@ -3131,8 +3166,8 @@ function renderSetList(col) {
   const row = s => {
     const k = setKey(s.lang, s.id), have = count.has(k) ? count.get(k).size : 0, all = s.total || s.official || 0, pct = all ? Math.min(100, Math.round(have / all * 100)) : 0;
     const latin = s.name.replace(/[^A-Za-zÄÖÜäöü0-9 &]/g, " ").split(/\s+/).filter(w => w && w !== "&").slice(0, 3).map(w => w[0]).join("").toUpperCase();
-    const pic = s.logo || s.symbol, initials = esc(isAsia(s.lang) ? s.id : latin || s.id);
-    return `<button class="set-row${have ? " started" : ""}" data-set="${esc(s.id)}" data-set-lang="${esc(isAsia(s.lang) ? s.lang : "")}"><span class="set-ic">${pic ? `<img${s.logo ? "" : ' class="sym"'} src="${esc(pic + ".webp")}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false">` : ""}<span class="set-ph"${pic ? " hidden" : ""}>${initials}</span></span>
+    const pic = setLogoImg(s), initials = esc(isAsia(s.lang) ? s.id : latin || s.id);
+    return `<button class="set-row${have ? " started" : ""}" data-set="${esc(s.id)}" data-set-lang="${esc(isAsia(s.lang) ? s.lang : "")}"><span class="set-ic">${pic}<span class="set-ph"${pic ? " hidden" : ""}>${initials}</span></span>
       <span class="set-tx"><b>${esc(s.name)}${isAsia(s.lang) ? ` <span class="lang-tag inline">${LANG_TAG[s.lang]}</span>` : ""}</b><span>${have ? `${have} von ${all}` : `${all} Karten`}</span>${have ? `<span class="trk"><span class="fill" style="width:${pct}%"></span></span>` : ""}</span></button>`;
   };
   const series = S.setIndex.series.map(se => ({ ...se, sets: se.sets.filter(s => !q || s.name.toLowerCase().includes(q) || se.name.toLowerCase().includes(q)) })).filter(se => se.sets.length);
