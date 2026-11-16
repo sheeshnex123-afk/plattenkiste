@@ -467,6 +467,8 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .pc-n { left: 50%; transform: translateX(-50%); bottom: 6px; background: rgba(25,18,40,.55); color: #fff; }
 .wishmark { left: 6px; top: 6px; background: var(--accent); color: #fff; }
 .set-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px 8px; }
+.pcard.picking .pimg { animation: pickPulse .7s ease-in-out infinite alternate; box-shadow: 0 0 0 3px #8f86e2, var(--shadow); }
+@keyframes pickPulse { to { transform: scale(.95); opacity: .7; } }
 .set-grid .pcard.miss .pimg { filter: grayscale(1) brightness(.9); opacity: .38; box-shadow: none; }
 .set-grid .pcard.own .pimg { box-shadow: 0 0 0 2px #8f86e2, var(--shadow); }
 
@@ -2027,9 +2029,14 @@ $("#s-refresh").onclick = async () => {
 /* ---------------- Sheets with Android back button ---------------- */
 const stack = [];
 function openSheet(sel, { replace } = {}) {
-  if (replace && stack.length) { hideRaw(stack.pop()); history.replaceState({ sheet: sel }, ""); }
-  else history.pushState({ sheet: sel }, "");
-  stack.push(sel); const el = $(sel); el.hidden = false; el.scrollTop = 0; document.body.style.overflow = "hidden";
+  // Opening the sheet that is already on top (e.g. a double tap) keeps it as it is: hiding it first
+  // would throw away the editor's draft and leave a "Speichern" button that does nothing.
+  if (stack[stack.length - 1] !== sel) {
+    if (replace && stack.length) { hideRaw(stack.pop()); history.replaceState({ sheet: sel }, ""); }
+    else history.pushState({ sheet: sel }, "");
+    stack.push(sel);
+  }
+  const el = $(sel); el.hidden = false; el.scrollTop = 0; document.body.style.overflow = "hidden";
 }
 function hideRaw(sel) {
   $(sel).hidden = true;
@@ -2290,20 +2297,31 @@ function showCardResults(list, g, auto) {
     <span class="pc-t">${esc(x.c.name)}</span><span class="pc-s">${esc(x.s ? x.s.name : setOfId(x.c.id))} · ${esc(x.c.localId)}${x.s && x.s.official ? "/" + x.s.official : ""}</span></button>`).join("");
   box.querySelectorAll("[data-ci]").forEach(b => b.onclick = () => pickCard(list[+b.dataset.ci].c.id, g));
 }
+// Only one card loads at a time; further taps while it loads are ignored, and the tapped card shows it is loading.
+let picking = false;
 async function pickCard(id, g, opts = { replace: true }) {
+  if (picking) return;
+  picking = true;
+  const tiles = document.querySelectorAll(`[data-ci], [data-sc="${CSS.escape(id)}"]`);
+  tiles.forEach(t => t.classList.toggle("picking", t.dataset.sc === id || (S.cres && S.cres[+t.dataset.ci] && S.cres[+t.dataset.ci].c.id === id)));
+  try { await pickCardNow(id, g, opts); } finally { picking = false; tiles.forEach(t => t.classList.remove("picking")); }
+}
+async function pickCardNow(id, g, opts) {
   if (opts.replace) cresStatus("busy", "Lade Karte und Cardmarket-Preis …");
   let c;
   try { c = await tcgCard(id); } catch (e) { if (opts.replace) cresStatus("warn", lookupErr(e)); else toast(lookupErr(e)); return; }
-  if (!c) { toast("Diese Karte konnte nicht geladen werden."); return; }
+  if (!c) { if (opts.replace) cresStatus("warn", "Diese Karte konnte nicht geladen werden. Versuch es noch einmal."); else toast("Diese Karte konnte nicht geladen werden."); return; }
   const extra = {};
   if (g) {
     if (CVAR[g.variant]) extra.variant = g.variant;
     if (CCOND[g.condition]) extra.condition = g.condition;
     if (CLANG[g.language]) extra.cardLang = g.language;
-    const notes = g.condition_notes && Object.entries(g.condition_notes).filter(([, v]) => v);
+    // Gemini sometimes sends the notes as one sentence instead of an object.
+    const cn = g.condition_notes;
+    const notes = cn && typeof cn === "object" ? Object.entries(cn).filter(([, v]) => v && typeof v !== "object").map(([k, v]) => [k, String(v)]) : null;
     if (notes && notes.length) extra.condNotes = Object.fromEntries(notes);
-    if (g.condition_summary) extra.condSummary = g.condition_summary;
-    if (g.graded && g.graded.company) extra.graded = { company: String(g.graded.company).toUpperCase(), grade: String(g.graded.grade || "") };
+    if (g.condition_summary || typeof cn === "string") extra.condSummary = String(g.condition_summary || cn);
+    if (g.graded && g.graded.company && !/^(null|none|keine?|nein|n\/?a|-)$/i.test(String(g.graded.company).trim())) extra.graded = { company: String(g.graded.company).toUpperCase(), grade: String(g.graded.grade || "") };
   }
   const d = cardDraftFrom(c, extra);
   if (g && S.cscan && S.cscan.g === g) d._blob = S.cscan.blob;
@@ -2311,7 +2329,7 @@ async function pickCard(id, g, opts = { replace: true }) {
 }
 
 /* --- Editor --- */
-function openCardEditor(d, opts) { S.cdraft = d; fillCard(); openSheet("#sheet-cedit", opts); }
+function openCardEditor(d, opts) { openSheet("#sheet-cedit", opts); S.cdraft = d; fillCard(); }
 function fillCard() {
   const d = S.cdraft; if (!d) return;
   $("#ce-title").textContent = d._new ? (d.list === "wishlist" ? "Neuer Kartenwunsch" : "Neue Karte") : "Karte bearbeiten";
