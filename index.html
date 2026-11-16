@@ -880,23 +880,47 @@ const S = { records: [], profile: {}, settings: {}, view: "collection", q: "", s
   cards: [], cview: "collection", csort: "added", caddTarget: "collection", cdraft: null, cdetailId: null, setId: null, setData: null, setFilter: "all", setIndex: null };
 
 /* ---------------- IndexedDB ---------------- */
+// The records must always load, whatever happens with the cards. So the database is opened at whatever
+// version it has (that never waits for anything), and the "cards" store is only added on first use.
+// That upgrade can be held up by an old app window that is still open; then only the cards wait, never the records.
 const IDB = (() => {
-  let dbp;
-  const open = () => dbp || (dbp = new Promise((res, rej) => {
-    const r = indexedDB.open("plattenkiste", 2);
-    r.onupgradeneeded = () => {
-      const d = r.result, has = n => d.objectStoreNames.contains(n);
-      if (!has("records")) d.createObjectStore("records", { keyPath: "id" });
-      if (!has("blobs")) d.createObjectStore("blobs");
-      if (!has("kv")) d.createObjectStore("kv");
-      if (!has("cards")) d.createObjectStore("cards", { keyPath: "id" }); // Pokémon cards (since v2)
-    };
-    // A newer app version upgrades the storage: older open windows let go, so the upgrade never hangs.
-    r.onsuccess = () => { const d = r.result; d.onversionchange = () => { d.close(); location.reload(); }; res(d); };
-    r.onblocked = () => toast("Die App ist noch in einem anderen Fenster offen. Schließ es, dann geht es weiter.");
+  const NAME = "plattenkiste";
+  let dbp = null, upP = null;
+  const makeStores = d => {
+    const has = n => d.objectStoreNames.contains(n);
+    if (!has("records")) d.createObjectStore("records", { keyPath: "id" });
+    if (!has("blobs")) d.createObjectStore("blobs");
+    if (!has("kv")) d.createObjectStore("kv");
+    if (!has("cards")) d.createObjectStore("cards", { keyPath: "id" });
+  };
+  const openRaw = version => new Promise((res, rej) => {
+    const r = version ? indexedDB.open(NAME, version) : indexedDB.open(NAME);
+    r.onupgradeneeded = () => makeStores(r.result);
+    // Another window wants to upgrade: let go so it can, and reconnect on the next access.
+    r.onsuccess = () => { const d = r.result; d.onversionchange = () => { d.close(); if (dbp && dbp.d === d) dbp = null; }; res(d); };
+    r.onblocked = () => { S.idbBlocked = true; toast("Die App ist noch in einem anderen Fenster offen (z. B. als Chrome-Tab). Schließ es, dann erscheinen deine Karten."); };
     r.onerror = () => rej(r.error);
-  }));
-  const tx = async (store, mode, fn) => { const d = await open(); return new Promise((res, rej) => { const t = d.transaction(store, mode); const st = t.objectStore(store); const out = fn(st); t.oncomplete = () => res(out && "result" in out ? out.result : out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
+  });
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("idb-timeout")), ms))]);
+  const base = () => {
+    if (dbp) return dbp;
+    const p = withTimeout(openRaw(), 10000).then(d => { p.d = d; return d; });
+    dbp = p; p.catch(() => { if (dbp === p) dbp = null; });
+    return p;
+  };
+  const open = async store => {
+    const d = await base();
+    if (d.objectStoreNames.contains(store)) return d;
+    // Store missing (first use of cards): one upgrade, then everything uses the new connection.
+    if (!upP) upP = (async () => {
+      const v = d.version + 1; d.close(); dbp = null;
+      const nd = await openRaw(v);
+      const p = Promise.resolve(nd); p.d = nd; dbp = p; S.idbBlocked = false;
+      return nd;
+    })().finally(() => { upP = null; });
+    return upP;
+  };
+  const tx = async (store, mode, fn) => { const d = await open(store); return new Promise((res, rej) => { const t = d.transaction(store, mode); const st = t.objectStore(store); const out = fn(st); t.oncomplete = () => res(out && "result" in out ? out.result : out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
   return {
     all: s => tx(s, "readonly", st => st.getAll()),
     get: (s, k) => tx(s, "readonly", st => st.get(k)),
@@ -2571,7 +2595,8 @@ function renderCards() {
       <select class="sort" id="csort" aria-label="Sortieren"><option value="added">Neueste</option><option value="value">Wert ↓</option><option value="name">Name A–Z</option><option value="set">Set & Nummer</option></select></div>` : ""}
   </div></header>`;
   let body;
-  if (!S.loaded) body = `<div class="empty"><div class="cards-fan"><i></i><i></i><i></i></div><p>Lade Karten …</p></div>`;
+  if (S.cardsError) body = loadErrorHTML("cards");
+  else if (!S.cardsLoaded) body = `<div class="empty"><div class="cards-fan"><i></i><i></i><i></i></div><p>${S.idbBlocked ? "Die Karten warten noch: Die App ist in einem zweiten Fenster offen (z. B. als Chrome-Tab). Schließ es, dann geht es sofort weiter." : "Lade Karten …"}</p></div>`;
   else if (v === "sets") body = renderSetList(col);
   else {
     const all = v === "wish" ? wl : col;
@@ -2661,13 +2686,14 @@ function renderList(kind) {
       <div class="brand"><span class="brand-disc"></span><span>${wish ? "Wunsch<em>liste</em>" : "Platten<em>kiste</em>"}</span></div>
       <div class="eyebrow">${greeting()}</div>
     </div>
-    <div class="hero"><div class="eyebrow">${wish ? "Wünsche kosten ca." : "Sammlungswert"}</div><div class="val">${fmtMoney(sumOf(all), "EUR", 0)}</div>
-      <div class="sub">${all.length} ${all.length === 1 ? (wish ? "Wunsch" : "Platte") : (wish ? "Wünsche" : "Platten")}${!wish && all.length ? ` · Ø ${fmtMoney(sumOf(all) / all.length, "EUR", 0)}` : ""}</div></div>
+    <div class="hero"><div class="eyebrow">${wish ? "Wünsche kosten ca." : "Sammlungswert"}</div><div class="val">${!S.loaded || S.loadError ? "–" : fmtMoney(sumOf(all), "EUR", 0)}</div>
+      <div class="sub">${!S.loaded ? "wird geladen …" : S.loadError ? "nicht geladen" : `${all.length} ${all.length === 1 ? (wish ? "Wunsch" : "Platte") : (wish ? "Wünsche" : "Platten")}${!wish && all.length ? ` · Ø ${fmtMoney(sumOf(all) / all.length, "EUR", 0)}` : ""}`}</div></div>
     ${all.length ? `<div class="tools"><input class="search" id="q" type="search" placeholder="Künstler, Titel, Label …" value="${esc(S.q)}" aria-label="Suchen">
       <select class="sort" id="sort" aria-label="Sortieren"><option value="added">Neueste</option><option value="artist">Künstler A–Z</option><option value="value">Wert ↓</option><option value="year">Jahr</option></select></div>` : ""}
   </div></header>`;
   let body;
   if (!S.loaded) body = `<div class="empty"><div class="disc"></div><p>Lade Sammlung …</p></div>`;
+  else if (S.loadError) body = loadErrorHTML("records");
   else if (!all.length) body = `<div class="empty"><div class="disc"></div><h3>${wish ? "Noch keine Wünsche" : "Noch keine Platten"}</h3>
     <p>${wish ? "Setz Platten drauf, die du noch suchst. Wenn du eine kaufst, verschiebst du sie mit einem Tipp in die Sammlung." : "Scanne den Barcode auf der Rückseite. Die App findet die Pressung, das Cover und den aktuellen Preis."}</p>
     <button class="btn primary" id="empty-add">${wish ? "Wunsch hinzufügen" : "Erste Platte scannen"}</button></div>`;
@@ -2742,17 +2768,35 @@ function render() {
   const av = $("#pf-avatar"); if (av) av.onchange = e => { const f = e.target.files[0]; e.target.value = ""; onAvatar(f); };
 }
 
+// Records first, cards separately: a problem with the cards can never hide the records.
 async function loadAll() {
+  S.loadError = false;
   try {
     S.records = await IDB.all("records");
-    S.cards = await IDB.all("cards").catch(() => []);
     S.profile = (await IDB.get("kv", "profile")) || {};
     S.settings = (await IDB.get("kv", "settings")) || {};
     await preloadBlobs();
-  } catch { toast("Der Speicher des Browsers ist nicht verfügbar."); }
+  } catch { S.loadError = true; }
   S.loaded = true; render(); hideSplash();
+  if (S.loadError) return;
+  loadCards();
   setTimeout(backfillVinyl, 4000);
-  setTimeout(() => refreshCardPrices(false).catch(() => {}), 8000);
+}
+async function loadCards() {
+  try {
+    S.cards = await IDB.all("cards");
+    await Promise.all(S.cards.map(c => loadBlobURL(c.photoBlobId)));
+    S.cardsLoaded = true; S.cardsError = false;
+  } catch { S.cardsError = true; }
+  render();
+  if (S.cardsLoaded) setTimeout(() => refreshCardPrices(false).catch(() => {}), 8000);
+}
+// Shown instead of an empty list when loading failed: the data is still on the phone.
+function loadErrorHTML(kind) {
+  const cards = kind === "cards";
+  return `<div class="empty"><div class="disc" style="animation:none"></div><h3>${cards ? "Karten konnten nicht geladen werden" : "Sammlung konnte nicht geladen werden"}</h3>
+    <p>Keine Sorge, ${cards ? "deine Karten sind" : "deine Platten sind"} nicht gelöscht. Meist ist die App noch in einem zweiten Fenster offen, z. B. als Tab in Chrome. Schließ alle anderen Fenster der App und tippe dann auf „Neu laden“.</p>
+    <button class="btn primary" onclick="location.reload()">Neu laden</button></div>`;
 }
 function hideSplash() {
   const s = $("#splash"); if (!s) return;
