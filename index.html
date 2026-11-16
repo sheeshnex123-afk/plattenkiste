@@ -591,51 +591,48 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 @keyframes fan { from { transform: rotate(calc(var(--a) * .6)); } to { transform: rotate(var(--a)) translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .hero.dusk::before, .brand-card, .cards-fan i, .holo, .pgrid .pcard { animation: none !important; } }
 
-/* ---------- Flair: living light, tilt, foil, confetti ---------- */
+/* ---------- Flair, kept light: nothing here repaints every frame ---------- */
+/* Smoothness rules: no blur behind moving things, no blend modes over the page, no endless colour/gradient
+   animations (they repaint the whole area on every frame); movement only via transform/opacity. */
 body::after { z-index: -2; }
-/* While music plays, the room glows in the colour of the record and breathes with it */
-.amb { position: fixed; inset: -15%; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
+body::before { display: none; } /* paper grain: a full-screen blend layer, costly on phones */
+/* While music plays, the background takes on the colour of the record (static, no breathing) */
+.amb { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1s ease;
   background: radial-gradient(45vmax 38vmax at 18% 22%, var(--amb, #e57e52), transparent 62%), radial-gradient(45vmax 38vmax at 86% 78%, var(--amb2, #c8506a), transparent 62%); }
-body.has-player .amb { opacity: .22; }
-body.amb-on .amb { animation: breathe 2.2s ease-in-out infinite alternate; }
-@keyframes breathe { from { opacity: .16; transform: scale(1); } to { opacity: .34; transform: scale(1.07); } }
-/* The brand's italic word shimmers like a sunset */
-.brand em { background: linear-gradient(90deg, #e57e52, #c8506a, #f2b45f, #e57e52); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: inkFlow 6s linear infinite; padding-right: .06em; }
-@keyframes inkFlow { to { background-position: 300% 0; } }
-/* Hero: the gradient drifts like an aurora, tilts with the phone and catches a moving light; little stars twinkle */
-.hero { background-size: 200% 200%; animation: aurora 12s ease-in-out infinite alternate; transform: perspective(900px) rotateX(var(--hx, 0deg)) rotateY(var(--hy, 0deg)); transition: transform .6s cubic-bezier(.2,.7,.2,1); will-change: transform; }
-.hero.dusk { background-size: 200% 200%; }
-@keyframes aurora { from { background-position: 0% 20%; } to { background-position: 100% 80%; } }
-.hero .shine { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(circle at var(--sx, 25%) var(--sy, 15%), rgba(255,255,255,.42), transparent 42%); mix-blend-mode: soft-light; transition: background .2s; }
-.hero .stars { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.hero .stars i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 1px rgba(255,255,255,.8); opacity: 0; animation: twinkle 3.4s ease-in-out infinite; }
-@keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 50% { opacity: .9; transform: scale(1); } }
+body.has-player .amb { opacity: .2; }
+.brand em { background: linear-gradient(90deg, #e57e52, #c8506a); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .06em; }
 .hero .val.counting { text-shadow: 0 0 22px rgba(255,240,210,.7), 0 2px 12px rgba(90,20,10,.25); }
-/* Records and cards lean towards your finger when pressed */
-.sleeve, .pcard .pimg { transform: perspective(650px) rotateX(var(--px, 0deg)) rotateY(var(--py, 0deg)) scale(var(--ps, 1)); transition: transform .35s cubic-bezier(.2,.7,.2,1); }
-.pcard:active .pimg { transform: perspective(650px) rotateX(var(--px, 0deg)) rotateY(var(--py, 0deg)) scale(.95); }
-/* Rare cards shimmer in the grid like real foil */
-.pcard.foil .pimg::after { background: linear-gradient(115deg, transparent 20%, rgba(255,120,200,.32) 34%, rgba(120,220,255,.34) 46%, rgba(255,240,140,.32) 58%, rgba(150,255,190,.28) 68%, transparent 82%);
-  background-size: 300% 300%; mix-blend-mode: color-dodge; animation: foil 4.5s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.37s); }
-@keyframes foil { 0%, 100% { background-position: 100% 0; } 50% { background-position: 0% 100%; } }
-.pcard.foil .pimg { box-shadow: 0 0 0 1px rgba(255,255,255,.35), 0 6px 22px rgba(140,110,230,.35); }
-/* Tap ripple */
+/* Records and cards dip slightly when pressed */
+.card:active .sleeve, .pcard:active .pimg { transform: scale(.96); }
+.sleeve { transition: transform .2s ease; }
+/* Rare cards: a still foil sheen in the grid (the moving one is on the big card) */
+.pcard.foil .pimg::after { background: linear-gradient(115deg, transparent 25%, rgba(255,120,200,.22) 38%, rgba(120,220,255,.24) 50%, rgba(255,240,140,.22) 62%, transparent 78%); }
+.pcard.foil .pimg { box-shadow: 0 0 0 1px rgba(255,255,255,.35), 0 4px 14px rgba(140,110,230,.3); }
+/* Tap ripple (transform + opacity only) */
 .btn, .big-opt, .qm-opt, .set-row, .own-row, .res { position: relative; overflow: hidden; }
-.ripple { position: absolute; border-radius: 50%; pointer-events: none; width: 20px; height: 20px; margin: -10px 0 0 -10px; background: currentColor; opacity: .22; transform: scale(0); animation: ripple .6s cubic-bezier(.2,.7,.2,1) forwards; }
-.btn.primary .ripple { background: #fff; opacity: .35; }
+.ripple { position: absolute; border-radius: 50%; pointer-events: none; width: 20px; height: 20px; margin: -10px 0 0 -10px; background: currentColor; opacity: .2; transform: scale(0); animation: ripple .5s ease-out forwards; }
+.btn.primary .ripple { background: #fff; opacity: .3; }
 @keyframes ripple { to { transform: scale(var(--rs, 30)); opacity: 0; } }
-/* The active tab glows */
-.tab-pill { background: linear-gradient(135deg, color-mix(in srgb, #f2b45f 26%, transparent), color-mix(in srgb, #c8506a 22%, transparent)); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent); }
-.tab.add .plus { animation: plusGlow 3s ease-in-out infinite; }
-@keyframes plusGlow { 50% { box-shadow: 0 8px 30px color-mix(in srgb, var(--accent) 70%, transparent); } }
-/* Confetti layer and milestone banner */
-.fx-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 80; pointer-events: none; }
-.milestone { position: fixed; z-index: 81; left: 50%; top: 32%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; padding: 22px 28px; border-radius: 28px; background: var(--sunset); color: #fff8ef; box-shadow: 0 30px 80px rgba(120,40,20,.45); animation: msIn 3.2s cubic-bezier(.2,.9,.3,1.2) forwards; min-width: 240px; }
-.milestone.dusk { background: var(--dusk); box-shadow: 0 30px 80px rgba(60,40,140,.45); }
-.milestone b { display: block; font-family: var(--f-display); font-variation-settings: "SOFT" 100; font-size: 46px; line-height: 1; }
-.milestone span { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; opacity: .9; }
-@keyframes msIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.5) rotate(-6deg); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06) rotate(1deg); } 22%, 82% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -60%) scale(.96); } }
-@media (prefers-reduced-motion: reduce) { .hero, .brand em, .hero .stars i, .pcard.foil .pimg::after, .tab.add .plus, body.amb-on .amb { animation: none !important; } }
+.tab-pill { background: linear-gradient(135deg, color-mix(in srgb, #f2b45f 26%, transparent), color-mix(in srgb, #c8506a 22%, transparent)); }
+/* No frosted glass: solid surfaces scroll much more smoothly */
+.nav-in, .mp-in { background: color-mix(in srgb, var(--surface) 96%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet-head { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.cover-play { background: rgba(30,20,16,.62); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.pc-badge { background: rgba(25,18,40,.78); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.qm { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(20,10,6,.5); }
+/* Loading tiles pulse softly instead of a sliding shine (which repainted every tile every frame) */
+.pimg::before { background: rgba(255,255,255,.25); animation: tilePulse 1.2s ease-in-out infinite alternate; }
+@keyframes tilePulse { from { opacity: .15; } to { opacity: .6; } }
+/* Records in the grid only turn while they play; dozens of spinning discs kept the phone busy */
+.disc-peek { animation: none; }
+.card.playing .disc-peek { animation: turn 1.8s linear infinite; }
+/* Off-screen tiles aren't drawn until you scroll near them */
+.grid .card, .pgrid .pcard, .set-row, .own-row { content-visibility: auto; }
+.grid .card { contain-intrinsic-size: auto 230px; }
+.pgrid .pcard { contain-intrinsic-size: auto 170px; }
+.set-grid .pcard { contain-intrinsic-size: auto 130px; }
+.set-row { contain-intrinsic-size: auto 62px; }
+.own-row { contain-intrinsic-size: auto 82px; }
 </style>
 </head>
 <body>
@@ -1722,7 +1719,7 @@ $("#ed-form").addEventListener("submit", async e => {
     await Store.saveRecord(rec);
     S.draft = null; closeSheet();
     toast(wasNew ? (rec.list === "wishlist" ? "Auf die Wunschliste gesetzt" : "Zur Sammlung hinzugefügt") : "Gespeichert");
-    if (wasNew) { setView(rec.list); try { FX.celebrateRecord(rec); } catch {} }
+    if (wasNew) setView(rec.list);
   } catch { toast("Speichern hat nicht geklappt. Ist der Speicher voll?"); }
   finally { btn.disabled = false; btn.textContent = "Speichern"; }
 });
@@ -2910,7 +2907,6 @@ $("#ce-form").addEventListener("submit", async e => {
   $("#ce-form")._draft = null;
   if (stack[stack.length - 1] === "#sheet-cedit") closeSheet(); else { $("#sheet-cedit").hidden = true; }
   toast(msg);
-  if (wasNew) try { FX.celebrateCard(d.list); } catch {}
   if (row) { row.saved = true; row.on = false; row.d = d; renderBatch(); return; }
   if (wasNew && !S.setId) { S.cview = d.list === "wishlist" ? "wish" : "collection"; if (S.view !== "cards") setView("cards"); else render(); }
 });
@@ -2989,7 +2985,6 @@ $("#cb-add").onclick = async () => {
   for (const r of rows) { btn.textContent = `Speichere ${rows.indexOf(r) + 1} von ${rows.length} …`; await saveCardDraft(r.d); r.saved = true; r.on = false; }
   const left = b.rows.filter(r => !r.saved).length;
   toast(`${rows.length} ${rows.length === 1 ? "Karte" : "Karten"} gespeichert${left ? ` – ${left} noch offen` : ""}`);
-  try { FX.celebrateCard(rows[0].d.list); } catch {}
   if (left) { renderBatch(); return; }
   closeSheet();
   S.cview = rows[0].d.list === "wishlist" ? "wish" : "collection"; if (S.view !== "cards") setView("cards"); else render();
@@ -3055,7 +3050,7 @@ function holoTilt(el) {
   set(0.5, 0.5);
 }
 window.addEventListener("deviceorientation", e => {
-  if (!tiltEl || !tiltEl.isConnected || tiltEl.classList.contains("touching") || e.gamma == null || tiltRAF) return;
+  if (!tiltEl || !tiltEl.isConnected || tiltEl.closest(".sheet[hidden]") || tiltEl.classList.contains("touching") || e.gamma == null || tiltRAF) return;
   tiltRAF = requestAnimationFrame(() => {
     tiltRAF = 0;
     const x = 0.5 + Math.max(-1, Math.min(1, e.gamma / 30)) * 0.5, y = 0.5 + Math.max(-1, Math.min(1, ((e.beta || 45) - 45) / 30)) * 0.5;
@@ -3436,14 +3431,13 @@ function hideSplash() {
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
   setTimeout(() => { s.classList.add("out"); setTimeout(() => s.remove(), 700); }, Math.max(0, (calm ? 300 : 1500) - performance.now()));
 }
-/* ---------------- Flair: count-ups, tilt, foil, ripples, haptics, confetti ---------------- */
-// Purely visual: nothing here reads or writes the collection.
+/* ---------------- Flair: count-ups, foil, ripples, haptics, record colour ---------------- */
+// Purely visual and deliberately light: nothing here reads or writes the collection.
 const FX = (() => {
   const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const buzz = p => { try { if (navigator.vibrate) navigator.vibrate(p); } catch {} };
   const amb = document.createElement("div"); amb.className = "amb"; document.body.prepend(amb);
-  // Numbers count up to their new value instead of just appearing.
-  // A re-render in the middle of counting (the list re-draws often) carries on where the number was.
+  // Numbers count up to their new value. A re-render in the middle carries on where the number was.
   const anims = new Map();
   const parseDE = t => { const m = String(t).match(/-?[\d.]+(?:,\d+)?/); if (!m) return null; const dec = (m[0].split(",")[1] || "").length; return { v: parseFloat(m[0].replace(/\./g, "").replace(",", ".")), dec, m: m[0] }; };
   function countUp(el, key) {
@@ -3451,7 +3445,7 @@ const FX = (() => {
     let a = anims.get(key);
     if (!a || a.to !== p.v) {
       const from = a ? a.cur : 0;
-      a = { from, cur: from, to: p.v, t0: performance.now(), dur: Math.min(1400, 500 + Math.log10(Math.abs(p.v - from) + 1) * 260) };
+      a = { from, cur: from, to: p.v, t0: performance.now(), dur: Math.min(1000, 400 + Math.log10(Math.abs(p.v - from) + 1) * 200) };
       anims.set(key, a);
     }
     if (a.from === a.to || calm() || performance.now() - a.t0 >= a.dur) { a.cur = a.to; return; }
@@ -3465,44 +3459,12 @@ const FX = (() => {
     };
     step(performance.now());
   }
-  // Light and tilt follow the finger, or the phone's angle when nobody touches the screen.
-  let heroEl = null, touchingHero = false;
-  function heroSet(x, y) {
-    if (!heroEl || !heroEl.isConnected) return;
-    heroEl.style.setProperty("--hx", ((0.5 - y) * 10).toFixed(2) + "deg"); heroEl.style.setProperty("--hy", ((x - 0.5) * 12).toFixed(2) + "deg");
-    heroEl.style.setProperty("--sx", (x * 100).toFixed(1) + "%"); heroEl.style.setProperty("--sy", (y * 100).toFixed(1) + "%");
-  }
-  let oriRAF = 0;
-  window.addEventListener("deviceorientation", e => {
-    if (touchingHero || e.gamma == null || oriRAF || calm()) return;
-    oriRAF = requestAnimationFrame(() => { oriRAF = 0; heroSet(Math.min(1, Math.max(0, 0.5 + e.gamma / 50)), Math.min(1, Math.max(0, 0.5 + ((e.beta || 45) - 45) / 50))); });
-  });
+  const FOIL = /holo|rare|selten|illustration|ultra|hyper|secret|vmax|vstar|\bex\b|gx|reverse/i;
   function after(app) {
-    // Counting numbers: the big value and the profile stats.
     app.querySelectorAll(".hero .val, .stat .n").forEach((el, i) => countUp(el, S.view + ":" + (S.cview || "") + ":" + i));
-    const hero = app.querySelector(".hero");
-    if (hero && !hero.querySelector(".shine")) {
-      hero.insertAdjacentHTML("afterbegin", `<span class="shine"></span><span class="stars">${Array.from({ length: 9 }, () => `<i style="left:${(Math.random() * 70 + 2).toFixed(1)}%;top:${(Math.random() * 90 + 4).toFixed(1)}%;animation-delay:${(-Math.random() * 3.4).toFixed(2)}s;animation-duration:${(2.4 + Math.random() * 2.4).toFixed(2)}s"></i>`).join("")}</span>`);
-      heroEl = hero;
-      hero.addEventListener("pointermove", e => { touchingHero = true; const r = hero.getBoundingClientRect(); heroSet((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); });
-      const off = () => { touchingHero = false; heroSet(0.5, 0.35); };
-      hero.addEventListener("pointerleave", off); hero.addEventListener("pointerup", off); hero.addEventListener("pointercancel", off);
-    }
-    // Rare cards in the collection get the foil shimmer.
-    app.querySelectorAll(".pcard[data-cid]").forEach(b => {
-      const c = S.cards.find(x => x.id === b.dataset.cid);
-      if (c && /holo|rare|selten|illustration|ultra|hyper|secret|vmax|vstar|\bex\b|gx|reverse/i.test((c.rarity || "") + " " + c.variant)) b.classList.add("foil");
-    });
+    const byId = new Map(S.cards.map(c => [c.id, c]));
+    app.querySelectorAll(".pcard[data-cid]").forEach(b => { const c = byId.get(b.dataset.cid); if (c && FOIL.test((c.rarity || "") + " " + c.variant)) b.classList.add("foil"); });
   }
-  // Press tilt on records and cards: they lean towards the finger.
-  document.addEventListener("pointerdown", e => {
-    const el = e.target.closest(".card, .pcard"); if (!el || calm()) return;
-    const box = (el.querySelector(".sleeve, .pimg") || el).getBoundingClientRect();
-    const x = (e.clientX - box.left) / box.width - 0.5, y = (e.clientY - box.top) / box.height - 0.5;
-    el.style.setProperty("--px", (-y * 16).toFixed(1) + "deg"); el.style.setProperty("--py", (x * 18).toFixed(1) + "deg"); el.style.setProperty("--ps", ".97");
-    const reset = () => { el.style.setProperty("--px", "0deg"); el.style.setProperty("--py", "0deg"); el.style.setProperty("--ps", "1"); ["pointerup", "pointercancel", "pointerleave"].forEach(ev => el.removeEventListener(ev, reset)); };
-    ["pointerup", "pointercancel", "pointerleave"].forEach(ev => el.addEventListener(ev, reset));
-  }, { passive: true });
   // Ripple and a tiny tick under the finger on buttons and tabs.
   document.addEventListener("pointerdown", e => {
     if (e.target.closest(".tab, .seg button, .cover-play, .mp-btn")) buzz(6);
@@ -3510,67 +3472,17 @@ const FX = (() => {
     const r = el.getBoundingClientRect(), s = document.createElement("span");
     s.className = "ripple"; s.style.left = (e.clientX - r.left) + "px"; s.style.top = (e.clientY - r.top) + "px";
     s.style.setProperty("--rs", (Math.hypot(r.width, r.height) / 9).toFixed(1));
-    el.appendChild(s); setTimeout(() => s.remove(), 650);
+    el.appendChild(s); setTimeout(() => s.remove(), 550);
   }, { passive: true });
-  // The room takes on the colour of the record that's playing.
-  function ambient(r, playing) {
-    if (r) {
-      const v = vinylOf(r), col = k => (VCOL[k] || VCOL.black)[1], h = hueOf((r.artist || "") + (r.title || ""));
-      const a = v.a && v.a !== "black" ? col(v.a) : `hsl(${h} 70% 55%)`;
-      document.body.style.setProperty("--amb", a); document.body.style.setProperty("--amb2", `hsl(${(h + 50) % 360} 65% 55%)`);
-    }
-    document.body.classList.toggle("amb-on", !!playing);
+  // The background takes on the colour of the record that's playing.
+  let ambId = null;
+  function ambient(r) {
+    if (!r || r.id === ambId) return; ambId = r.id;
+    const v = vinylOf(r), col = k => (VCOL[k] || VCOL.black)[1], h = hueOf((r.artist || "") + (r.title || ""));
+    document.body.style.setProperty("--amb", v.a && v.a !== "black" ? col(v.a) : `hsl(${h} 70% 55%)`);
+    document.body.style.setProperty("--amb2", `hsl(${(h + 50) % 360} 65% 55%)`);
   }
-  // Confetti: little records for records, holo foil for cards, from where the action happened.
-  function confetti(kind = "vinyl") {
-    if (calm()) { buzz(20); return; }
-    buzz([14, 40, 22]);
-    const cv = document.createElement("canvas"); cv.className = "fx-canvas"; document.body.appendChild(cv);
-    const dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
-    cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
-    const warm = ["#f2b45f", "#e57e52", "#c8506a", "#fff1d6", "#6f8f6a"], holo = ["#7fb2ec", "#8f86e2", "#d77cb4", "#9ff0d8", "#fff3a0", "#ffffff"];
-    const pal = kind === "card" ? holo : warm, parts = [];
-    for (let i = 0; i < 120; i++) {
-      // Two cannons in the bottom corners shoot towards the middle.
-      const left = i % 2 === 0;
-      parts.push({ x: left ? -10 : W + 10, y: H * (0.55 + Math.random() * 0.25), vx: (left ? 1 : -1) * (3 + Math.random() * 8), vy: -(9 + Math.random() * 9),
-        rot: Math.random() * 6, vr: (Math.random() - .5) * .35, s: 5 + Math.random() * 7, c: pal[i % pal.length], shape: kind === "vinyl" && i % 4 === 0 ? "disc" : i % 3 ? "rect" : "star", flip: Math.random() * 6 });
-    }
-    const t0 = performance.now();
-    const star = (s) => { g.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? s * .45 : s; const a = k * Math.PI / 5; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); };
-    const frame = now => {
-      const t = now - t0; g.clearRect(0, 0, W, H);
-      for (const p of parts) {
-        p.vy += .32; p.vx *= .99; p.vy *= .99; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.flip += .18;
-        g.save(); g.globalAlpha = Math.max(0, 1 - t / 2600); g.translate(p.x, p.y); g.rotate(p.rot);
-        if (p.shape === "disc") {
-          g.fillStyle = "#1c1614"; g.beginPath(); g.arc(0, 0, p.s, 0, 7); g.fill();
-          g.fillStyle = p.c; g.beginPath(); g.arc(0, 0, p.s * .4, 0, 7); g.fill();
-        } else if (p.shape === "star") { g.fillStyle = p.c; star(p.s * .8); }
-        else { g.scale(Math.cos(p.flip), 1); g.fillStyle = p.c; g.fillRect(-p.s / 2, -p.s * .7, p.s, p.s * 1.4); }
-        g.restore();
-      }
-      if (t < 2700) requestAnimationFrame(frame); else cv.remove();
-    };
-    requestAnimationFrame(frame);
-  }
-  const MILES = [1, 10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000];
-  function milestone(n, what, dusk) {
-    if (!MILES.includes(n)) return false;
-    const el = document.createElement("div"); el.className = "milestone" + (dusk ? " dusk" : "");
-    el.innerHTML = `<span>${n === 1 ? "Der Anfang" : "Meilenstein"}</span><b>${n}</b><span>${esc(what)}</span>`;
-    document.body.appendChild(el); setTimeout(() => el.remove(), 3300);
-    return true;
-  }
-  function celebrateRecord(rec) {
-    confetti("vinyl");
-    if (rec.list !== "wishlist") { const n = S.records.filter(r => (r.list || "collection") === "collection").length; milestone(n, n === 1 ? "erste Platte" : "Platten", false); }
-  }
-  function celebrateCard(list) {
-    confetti("card");
-    if (list !== "wishlist") { const n = cardsQty(S.cards.filter(c => c.list !== "wishlist")); milestone(n, n === 1 ? "erste Karte" : "Karten", true); }
-  }
-  return { after, ambient, confetti, celebrateRecord, celebrateCard, buzz };
+  return { after, ambient, buzz };
 })();
 
 // Two-finger pinch never zooms the app (backup for browsers that ignore user-scalable=no).
