@@ -792,7 +792,8 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
       </div>
       <div class="panel">
         <h3>Datensicherung</h3>
-        <p class="hint">Deine Sammlung liegt nur auf diesem Handy. Mach ab und zu eine Sicherung und lege die Datei z. B. in Google Drive.</p>
+        <p class="hint">Deine Sammlung liegt nur auf diesem Handy. Mach ab und zu eine Sicherung und lege die Datei z. B. in Google Drive. Die Sicherung enthält Platten, Karten, Profil und deine Verbindungen (Discogs-Token, Gemini-Schlüssel) – gib die Datei deshalb nicht weiter.</p>
+        <div class="status" id="s-storage"></div>
         <div class="btn-row">
           <button class="btn" id="s-export">Sicherung speichern</button>
           <span class="btn" style="position:relative">Sicherung laden<input type="file" id="s-import" accept="application/json,.json" style="position:absolute;inset:0;opacity:0;width:100%"></span>
@@ -2069,7 +2070,38 @@ $("#s-gemini-save").onclick = async () => {
   } catch (e) { st.className = "status warn"; st.textContent = e.message === "gemkey" ? "Der Schlüssel wurde nicht angenommen. Kopiere ihn noch einmal komplett." : lookupErr(e); }
   render();
 };
-function openSettings() { $("#s-gemini").value = S.settings.geminiKey || ""; $("#s-gemini-status").hidden = true; $("#s-token").value = S.settings.token || ""; $("#s-status").hidden = true; $("#s-refresh-status").textContent = ""; openSheet("#sheet-settings"); }
+function openSettings() { $("#s-gemini").value = S.settings.geminiKey || ""; $("#s-gemini-status").hidden = true; $("#s-token").value = S.settings.token || ""; $("#s-status").hidden = true; $("#s-refresh-status").textContent = ""; fillStorageInfo(); openSheet("#sheet-settings"); }
+async function fillStorageInfo() {
+  const el = $("#s-storage"); if (!el) return;
+  let used = null, persisted = null;
+  try { const e = await navigator.storage.estimate(); used = e.usage; } catch {}
+  try { persisted = await navigator.storage.persisted(); } catch {}
+  const last = S.settings.lastBackup ? new Date(S.settings.lastBackup).toLocaleDateString("de-DE") : "noch nie";
+  el.className = "status " + (persisted ? "ok" : "warn");
+  el.innerHTML = `<span>Letzte Sicherung: <b>${esc(last)}</b>${used != null ? ` · Speicher belegt: ${(used / 1e6).toFixed(used < 1e7 ? 1 : 0)} MB` : ""}<br>${persisted ? "Chrome hat den Speicher als dauerhaft markiert – er wird nicht automatisch geleert." : "Chrome hat den Speicher noch nicht als dauerhaft markiert. Eine Sicherung ist deshalb besonders wichtig."}</span>`;
+}
+// Runs once at start: removes pictures an older app version left in the offline storage (each one counted
+// as ~7-9 MB there) and asks Chrome to keep the storage permanently.
+async function storageCare() {
+  try {
+    if ("caches" in window) for (const k of await caches.keys()) {
+      const c = await caches.open(k);
+      for (const req of await c.keys()) { const u = new URL(req.url); if (u.origin !== location.origin && !/fonts\.(googleapis|gstatic)\.com/.test(u.host)) await c.delete(req); }
+    }
+  } catch {}
+  try { if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist(); } catch {}
+}
+// A friendly nudge in the profile when the last backup is old or there is a lot that isn't backed up yet.
+function backupNudge() {
+  const items = S.records.length + S.cards.length; if (!items) return "";
+  const last = S.settings.lastBackup ? new Date(S.settings.lastBackup) : null;
+  const since = last ? [...S.records, ...S.cards].filter(x => (x.updatedAt || x.addedAt || "") > S.settings.lastBackup).length : items;
+  const days = last ? (Date.now() - last) / 864e5 : Infinity;
+  if (since < 5 && days < 14) return "";
+  return `<div class="panel backup-nudge"><div class="sec-title" style="padding:0"><h3>Sicherung empfohlen</h3></div>
+    <p class="hint" style="margin:0">${last ? `Seit deiner letzten Sicherung am ${last.toLocaleDateString("de-DE")} sind ${since} Einträge dazugekommen oder geändert.` : `Du hast ${items} Einträge und noch keine Sicherung.`} Deine Sammlung liegt nur auf diesem Handy – mit einer Sicherung ist sie nie verloren.</p>
+    <button class="btn primary" id="pf-backup">Jetzt sichern</button></div>`;
+}
 $("#s-save").onclick = async () => {
   const t = $("#s-token").value.trim();
   await Store.saveSettings({ ...S.settings, token: t });
@@ -2089,12 +2121,15 @@ $("#s-export").onclick = async () => {
   for (const r of S.records) if (r.coverBlobId) { const b = await IDB.get("blobs", r.coverBlobId).catch(() => null); if (b) blobs[r.coverBlobId] = await toDataURL(b); }
   if (S.profile.avatarBlobId) { const b = await IDB.get("blobs", S.profile.avatarBlobId).catch(() => null); if (b) blobs[S.profile.avatarBlobId] = await toDataURL(b); }
   for (const c of S.cards) if (c.photoBlobId) { const b = await IDB.get("blobs", c.photoBlobId).catch(() => null); if (b) blobs[c.photoBlobId] = await toDataURL(b); }
-  const data = { app: "plattenkiste", version: 2, exportedAt: new Date().toISOString(), records: S.records, cards: S.cards, profile: S.profile, blobs };
+  // Connections (Discogs token, Gemini key) are part of the backup, so a restore brings everything back.
+  const { gemModels, gemOut, ...settings } = S.settings;
+  const data = { app: "plattenkiste", version: 3, exportedAt: new Date().toISOString(), records: S.records, cards: S.cards, profile: S.profile, settings, blobs };
   const file = new Blob([JSON.stringify(data)], { type: "application/json" });
   const name = `plattenkiste-${new Date().toISOString().slice(0, 10)}.json`;
-  try { if (navigator.canShare && navigator.canShare({ files: [new File([file], name, { type: "application/json" })] })) { await navigator.share({ files: [new File([file], name, { type: "application/json" })], title: "Plattenkiste-Sicherung" }); return; } } catch (e) { if (e.name === "AbortError") return; }
+  const done = () => { Store.saveSettings({ ...S.settings, lastBackup: new Date().toISOString() }); render(); fillStorageInfo(); };
+  try { if (navigator.canShare && navigator.canShare({ files: [new File([file], name, { type: "application/json" })] })) { await navigator.share({ files: [new File([file], name, { type: "application/json" })], title: "Plattenkiste-Sicherung" }); done(); toast("Sicherung gespeichert"); return; } } catch (e) { if (e.name === "AbortError") return; }
   const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  toast("Sicherung gespeichert");
+  done(); toast("Sicherung gespeichert");
 };
 $("#s-import").addEventListener("change", async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -2105,6 +2140,8 @@ $("#s-import").addEventListener("change", async e => {
     for (const r of data.records) await IDB.put("records", r);
     for (const c of data.cards || []) await IDB.put("cards", c);
     if (data.profile) await IDB.put("kv", data.profile, "profile");
+    // Older backups have no settings: keep the current connections then.
+    if (data.settings) await IDB.put("kv", { ...data.settings, ...Object.fromEntries(Object.entries(S.settings).filter(([k, v]) => v && !data.settings[k])), lastBackup: data.exportedAt }, "settings");
     await loadAll(); toast(`${data.records.length} Platten${data.cards ? ` und ${data.cards.length} Karten` : ""} geladen`);
   } catch { toast("Diese Datei ist keine Plattenkiste-Sicherung."); }
 });
@@ -2656,11 +2693,19 @@ $("#ce-form").addEventListener("submit", async e => {
   const btn = $("#ce-form button[type=submit]");
   savingCard = true; btn.disabled = true; btn.textContent = "Speichere …";
   let msg;
+  const attempt = () => Promise.race([saveCardDraft(d), new Promise((_, rej) => setTimeout(() => rej(new Error("save-timeout")), 15000))]);
+  const full = err => err && (err.name === "QuotaExceededError" || /quota/i.test(String(err.message || "")));
   try {
-    msg = await Promise.race([saveCardDraft(d), new Promise((_, rej) => setTimeout(() => rej(new Error("save-timeout")), 15000))]);
+    try { msg = await attempt(); }
+    catch (err) {
+      if (!full(err)) throw err;
+      // Storage full: clear leftovers from the offline storage, then try once more.
+      btn.textContent = "Räume Speicher auf …"; await storageCare(); msg = await attempt();
+    }
   } catch (err) {
     toast(err && err.message === "save-timeout"
       ? "Speichern hängt: Die App ist wohl noch in einem zweiten Fenster offen (z. B. als Chrome-Tab). Schließ es und tippe nochmal auf Speichern."
+      : full(err) ? "Der Speicher deines Handys ist voll. Mach bitte sofort unter Profil → Einstellungen eine Sicherung und schaff etwas Platz."
       : "Speichern hat nicht geklappt. Tippe bitte nochmal auf Speichern.");
     return;
   } finally { savingCard = false; btn.disabled = false; btn.textContent = "Speichern"; }
@@ -3064,6 +3109,7 @@ function renderProfile() {
       <p style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill ${token() ? "on" : ""}">${token() ? "Discogs verbunden" : "Discogs nicht verbunden"}</span><span class="pill ${gemKey() ? "on" : ""}">${gemKey() ? "Cover-Erkennung an" : "Cover-Erkennung aus"}</span></p></div>
     </div>
     <div class="sheet-body">
+      ${backupNudge()}
       <div class="stats">
         <div class="stat"><span class="eyebrow">Platten</span><span class="n">${col.length}</span></div>
         <div class="stat gold"><span class="eyebrow">Portfoliowert</span><span class="n">${fmtMoney(total, "EUR", 0)}</span></div>
@@ -3099,6 +3145,7 @@ function render() {
   const ea = $("#empty-add"); if (ea) ea.onclick = () => { $("#tab-add").click(); };
   const pe = $("#pf-edit"); if (pe) pe.onclick = openProfileEditor;
   const ps = $("#pf-settings"); if (ps) ps.onclick = openSettings;
+  const pb = $("#pf-backup"); if (pb) pb.onclick = () => $("#s-export").click();
   const av = $("#pf-avatar"); if (av) av.onchange = e => { const f = e.target.files[0]; e.target.value = ""; onAvatar(f); };
 }
 
@@ -3143,7 +3190,7 @@ function hideSplash() {
 document.addEventListener("touchmove", e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 document.addEventListener("gesturestart", e => e.preventDefault());
 render(); loadAll();
-if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+storageCare();
 if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
 </script>
