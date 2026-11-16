@@ -44,7 +44,9 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 /* Feel like an app, not a web page: no pinch/double-tap zoom, no sideways drifting, no text selection on UI */
-html, body { overflow-x: hidden; overscroll-behavior: none; touch-action: pan-y; }
+/* Only on html (= the page itself): body must not become its own scroll box, or swipes stop scrolling. */
+html { overflow-x: hidden; overscroll-behavior-y: none; touch-action: pan-y; }
+body { overflow-x: clip; }
 body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 input, textarea, select, [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .pick-row { touch-action: pan-x pan-y; }
@@ -271,6 +273,8 @@ h1, h2, h3 { font-family: var(--f-display); font-optical-sizing: auto; font-vari
 .dt-stage .dt-disc { translate: 24% 0; }
 @media (prefers-reduced-motion: reduce) { .dt-stage .detail-cover { animation: none; } .dt-disc { animation: none; translate: 24% 0; } }
 .detail-cover { width: min(100%, 420px); margin: 0 auto; }
+/* Reaches the screen edges and cuts the protruding record there, so the page can't be nudged sideways */
+.dt-clip { overflow-x: clip; margin: -12px calc(-1 * max(16px, env(safe-area-inset-right, 0px))) -8px; padding: 12px max(16px, env(safe-area-inset-right, 0px)) 20px; }
 .d-title { display: grid; gap: 4px; text-align: center; }
 .d-title h2 { font-size: 30px; line-height: 1.1; }
 .d-title .a { color: var(--muted); font-size: 16px; font-style: italic; font-family: var(--f-display); }
@@ -1683,7 +1687,7 @@ function refreshDetail(open, opts) {
     ["Hinzugefügt", r.addedAt ? new Date(r.addedAt).toLocaleDateString("de-DE") : null]].filter(x => x[1]);
   const src = r.valueSource === "discogs" ? `${r.priceKind === "lowest" ? "Günstigstes Angebot (bitte Preise aktualisieren)" : "Discogs-Marktwert"} · ${new Date(r.valueDate).toLocaleDateString("de-DE")}` : r.valueSource === "manuell" ? "Eigener Wert" : "";
   $("#dt-body").innerHTML = `
-    <div class="dt-stage${isPlaying(r.id) ? " playing" : ""}" data-stage="${esc(r.id)}">${discHTML(r, "dt-disc")}${coverHTML(r, "detail-cover")}</div>
+    <div class="dt-clip"><div class="dt-stage${isPlaying(r.id) ? " playing" : ""}" data-stage="${esc(r.id)}">${discHTML(r, "dt-disc")}${coverHTML(r, "detail-cover")}</div></div>
     <div class="d-title"><h2>${esc(r.title || "Ohne Titel")}</h2><div class="a">${esc(r.artist || "Unbekannt")}</div></div>
     <div class="chips">${[r.year, r.format, wish ? null : r.condition, (r.genre || "").split(" / ")[0], vinylOf(r).a === "black" && vinylOf(r).k === "solid" ? null : vinylLabel(r)].filter(Boolean).map(c => `<span class="badge">${esc(c)}</span>`).join("")}</div>
     <div class="listen"><button class="btn primary" id="dt-play">${IC.play} Bekanntesten Song anhören</button></div>
