@@ -173,7 +173,7 @@ h1, h2, h3 { font-family: var(--f-display); font-optical-sizing: auto; font-vari
 
 /* Floating glass tab bar */
 .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(12px, env(safe-area-inset-left, 0px)); pointer-events: none; }
-.nav-in { pointer-events: auto; max-width: 520px; margin: 0 auto; height: var(--nav-h); display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; border-radius: 26px;
+.nav-in { pointer-events: auto; max-width: 520px; margin: 0 auto; height: var(--nav-h); display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; border-radius: 26px;
   background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: var(--shadow-lg); }
 .tab { position: relative; background: none; border: 0; display: grid; justify-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted); padding: 6px 0; transition: color .2s; }
 .tab svg { width: 24px; height: 24px; transition: transform .25s cubic-bezier(.2,.7,.2,1); }
@@ -336,7 +336,7 @@ h1, h2, h3 { font-family: var(--f-display); font-optical-sizing: auto; font-vari
 @keyframes swapR { from { opacity: 0; transform: translateX(28px); } }
 @keyframes swapL { from { opacity: 0; transform: translateX(-28px); } }
 .nav-in { position: relative; }
-.tab-pill { position: absolute; top: 8px; bottom: 8px; left: calc(var(--ti, 0) * 25% + 6px); width: calc(25% - 12px); border-radius: 18px;
+.tab-pill { position: absolute; top: 8px; bottom: 8px; left: calc(var(--ti, 0) * 20% + 4px); width: calc(20% - 8px); border-radius: 18px;
   background: color-mix(in srgb, var(--accent) 13%, transparent); transition: left .45s cubic-bezier(.3,1.4,.5,1); pointer-events: none; }
 .tab[aria-current="page"]::after { display: none; }
 .tab[aria-current="page"] svg { animation: pop .45s cubic-bezier(.3,1.6,.5,1); }
@@ -428,6 +428,113 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .tl-row.na .tl-ic { background: none; }
 .listen { display: flex; justify-content: center; }
 .listen .btn { min-width: 220px; }
+/* ---------- Pokémon cards ---------- */
+:root { --dusk: linear-gradient(135deg, #7fb2ec 0%, #8f86e2 48%, #d77cb4 100%); --card-r: 4.6% / 3.3%; }
+.hero.dusk { background: var(--dusk); }
+.hero.dusk::before { width: 120px; height: 168px; right: 26px; top: 50%; border-radius: 12px; transform: translateY(-50%) rotate(12deg); animation: cardFloat 6s ease-in-out infinite alternate;
+  background: linear-gradient(135deg, rgba(255,255,255,.55), rgba(255,255,255,.12)), repeating-linear-gradient(45deg, rgba(255,255,255,.14) 0 6px, transparent 6px 12px);
+  box-shadow: 0 10px 30px rgba(40,20,80,.3), inset 0 0 0 3px rgba(255,255,255,.55); opacity: .85; }
+.hero.dusk::after { background: radial-gradient(120% 90% at 0% 0%, rgba(255,255,255,.28), transparent 55%), radial-gradient(40px 40px at 78% 30%, rgba(255,255,255,.5), transparent 70%); }
+@keyframes cardFloat { from { transform: translateY(-54%) rotate(9deg); } to { transform: translateY(-46%) rotate(15deg); } }
+.brand-card { width: 26px; height: 34px; flex: none; border-radius: 5px; background: var(--dusk); box-shadow: inset 0 0 0 2.5px rgba(255,255,255,.7), 0 4px 12px rgba(80,60,160,.3); transform: rotate(-8deg); animation: brandWiggle 5s ease-in-out infinite; }
+@keyframes brandWiggle { 50% { transform: rotate(6deg) translateY(-1px); } }
+.seg3 { grid-template-columns: repeat(3, 1fr); }
+.cseg { margin-top: 14px; }
+.cseg button[aria-pressed="true"] { color: #7d6bd6; }
+@media (prefers-color-scheme: dark) { .cseg button[aria-pressed="true"] { color: #b6a8ff; } }
+.stat.dusk { background: var(--dusk); border-color: transparent; color: #fff; }
+.stat.dusk .eyebrow { color: rgba(255,255,255,.85); }
+.big-opt.dusk-ic .ic { background: var(--dusk); box-shadow: 0 6px 16px rgba(120,100,220,.3); }
+
+/* Card grid */
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 12px; padding-block: 14px 0; }
+.pgrid.anim .pcard, #cres-list .pcard { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+.pcard { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; -webkit-touch-callout: none; }
+.pimg { position: relative; width: 100%; aspect-ratio: 63 / 88; border-radius: var(--card-r); overflow: hidden; background: linear-gradient(160deg, var(--surface-2), var(--line)); box-shadow: var(--shadow); transition: transform .3s cubic-bezier(.2,.7,.2,1); }
+.pimg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.pimg-ph { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 12px; color: var(--muted); }
+.pimg::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(125deg, transparent 30%, rgba(255,255,255,.22) 45%, transparent 60%); background-size: 250% 250%; background-position: 120% 0; transition: background-position .6s ease; }
+.pcard:active .pimg { transform: scale(.96) rotate(-1deg); }
+.pcard:active .pimg::after { background-position: -20% 0; }
+@media (hover: hover) { .pcard:hover .pimg { transform: translateY(-3px) rotate(-1deg); } .pcard:hover .pimg::after { background-position: -20% 0; } }
+.pc-t { font-family: var(--f-display); font-variation-settings: "SOFT" 100; font-weight: 600; font-size: 13.5px; line-height: 1.2; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-s { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-v { color: var(--gold); font-weight: 700; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pc-badge, .qty, .pc-n, .wishmark { position: absolute; z-index: 2; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; line-height: 1.4; }
+.pc-badge { left: 6px; top: 6px; background: rgba(25,18,40,.62); color: #fff; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.pc-badge:empty { display: none; }
+.qty { right: 6px; top: 6px; background: var(--dusk); color: #fff; box-shadow: 0 2px 8px rgba(80,60,160,.35); }
+.pc-n { left: 50%; transform: translateX(-50%); bottom: 6px; background: rgba(25,18,40,.55); color: #fff; }
+.wishmark { left: 6px; top: 6px; background: var(--accent); color: #fff; }
+.set-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px 8px; }
+.set-grid .pcard.miss .pimg { filter: grayscale(1) brightness(.9); opacity: .38; box-shadow: none; }
+.set-grid .pcard.own .pimg { box-shadow: 0 0 0 2px #8f86e2, var(--shadow); }
+
+/* Set list */
+.ser-h { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: 20px 4px 8px; }
+.set-list { display: grid; gap: 8px; }
+.set-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 12px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); text-align: left; box-shadow: var(--shadow); transition: transform .15s; }
+.set-row:active { transform: scale(.98); }
+.set-row.started { border-color: color-mix(in srgb, #8f86e2 45%, var(--line)); }
+.set-ic { width: 84px; height: 40px; flex: none; display: grid; place-items: center; }
+.set-ic img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.set-ic img.sym { width: 28px; height: 28px; }
+.set-ph { width: 46px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--dusk); color: #fff; font-family: var(--f-display); font-weight: 700; font-size: 14px; letter-spacing: .02em; box-shadow: 0 4px 10px rgba(120,100,220,.25); }
+.set-tx { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.set-tx b { font-family: var(--f-display); font-variation-settings: "SOFT" 100; font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-tx > span { color: var(--muted); font-size: 12.5px; }
+.trk { display: block; height: 7px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.trk .fill { display: block; height: 100%; border-radius: 99px; background: var(--dusk); }
+.set-head { display: grid; gap: 12px; justify-items: center; text-align: center; }
+.set-logo { max-width: 70%; max-height: 90px; object-fit: contain; filter: drop-shadow(0 6px 14px rgba(0,0,0,.18)); animation: rise .5s cubic-bezier(.2,.7,.2,1); }
+.set-prog { width: 100%; display: grid; gap: 6px; }
+.set-prog .trk { height: 10px; }
+.set-nums b { font-family: var(--f-display); font-size: 22px; }
+
+/* Card editor */
+.ce-top { display: flex; gap: 16px; align-items: center; padding: 14px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.ce-img { width: 118px; flex: none; }
+.ce-side { display: grid; gap: 6px; min-width: 0; }
+.ce-side b { font-family: var(--f-display); font-variation-settings: "SOFT" 100; font-weight: 600; font-size: 20px; line-height: 1.15; }
+.ce-side span { color: var(--muted); font-size: 13px; }
+.cond-box { display: grid; gap: 10px; padding: 14px; border-radius: 22px; background: color-mix(in srgb, #8f86e2 10%, var(--surface)); border: 1px solid color-mix(in srgb, #8f86e2 30%, var(--line)); }
+.cond-head { display: flex; gap: 12px; align-items: center; }
+.cond-head b { display: block; font-size: 14.5px; }
+.cond-head span { color: var(--muted); font-size: 13px; }
+.cond-grade { width: 48px; height: 48px; flex: none; border-radius: 14px; display: grid; place-items: center; background: var(--dusk); color: #fff; font-family: var(--f-display); font-weight: 700; font-size: 18px; box-shadow: 0 6px 16px rgba(120,100,220,.3); }
+.cond-list { margin: 0; display: grid; gap: 6px; }
+.cond-list div { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; font-size: 13px; }
+.cond-list dt { color: var(--muted); font-weight: 600; }
+.cond-list dd { margin: 0; }
+
+/* Card detail: holo tilt */
+.holo-stage { perspective: 1000px; display: grid; justify-items: center; padding: 6px 0 10px; }
+.holo { position: relative; width: min(74%, 310px); border-radius: var(--card-r); transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transform-style: preserve-3d; transition: transform .35s cubic-bezier(.2,.7,.2,1);
+  box-shadow: 0 20px 50px rgba(40,20,80,.35), 0 4px 12px rgba(0,0,0,.15); animation: cardIn .8s cubic-bezier(.2,.7,.2,1) backwards; touch-action: pan-y; }
+.holo.touching { transition: transform .08s linear; }
+.holo .pimg { border-radius: inherit; box-shadow: none; }
+.holo-shine, .holo-glare { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.holo-glare { background: radial-gradient(farthest-corner circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.45), rgba(255,255,255,0) 50%); mix-blend-mode: overlay; opacity: var(--o, .3); transition: opacity .3s; }
+.holo.shiny .holo-shine { mix-blend-mode: color-dodge; opacity: calc(var(--o, .3) * .7);
+  background: linear-gradient(115deg, transparent 18%, rgba(255,110,190,.35) 32%, rgba(110,220,255,.35) 46%, rgba(255,240,130,.35) 60%, rgba(150,255,180,.3) 72%, transparent 86%);
+  background-size: 240% 240%; background-position: var(--mx, 50%) var(--my, 50%); transition: opacity .3s; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(30px) rotateX(24deg) rotateY(-12deg) scale(.92); } }
+.cm-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.cm-stats div { display: grid; gap: 2px; padding: 8px 4px; border-radius: 12px; background: var(--surface-2); }
+.cm-stats span { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+.cm-stats b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.cd-photo { width: 100%; border-radius: 14px; display: block; }
+.mini-card { width: 40px; flex: none; }
+.mini-card .pimg { border-radius: 4px; }
+
+/* Empty state: a little fan of cards */
+.cards-fan { position: relative; width: 150px; height: 130px; }
+.cards-fan i { position: absolute; left: 50%; top: 6px; width: 78px; height: 109px; margin-left: -39px; border-radius: 8px; transform-origin: 50% 120%; background: var(--dusk); box-shadow: var(--shadow-lg), inset 0 0 0 3px rgba(255,255,255,.6); animation: fan 3.2s ease-in-out infinite alternate; }
+.cards-fan i:nth-child(1) { --a: -16deg; opacity: .7; }
+.cards-fan i:nth-child(2) { --a: 0deg; opacity: .85; animation-delay: -.4s; }
+.cards-fan i:nth-child(3) { --a: 16deg; animation-delay: -.8s; }
+@keyframes fan { from { transform: rotate(calc(var(--a) * .6)); } to { transform: rotate(var(--a)) translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .hero.dusk::before, .brand-card, .cards-fan i, .holo, .pgrid .pcard { animation: none !important; } }
 </style>
 </head>
 <body>
@@ -454,15 +561,19 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
     <span class="tab-pill" id="tab-pill"></span>
     <button class="tab" data-view="collection">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r=".6" fill="currentColor"/></svg>
-      Sammlung
+      Platten
     </button>
     <button class="tab" data-view="wishlist">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
       Wunschliste
     </button>
-    <button class="tab add" id="tab-add" aria-label="Platte hinzufügen">
+    <button class="tab add" id="tab-add" aria-label="Hinzufügen">
       <span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
-      Hinzufügen
+      Neu
+    </button>
+    <button class="tab" data-view="cards">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="8" y="3.5" width="11" height="15" rx="2" transform="rotate(10 13.5 11)"/><rect x="4.5" y="5.5" width="11" height="15" rx="2" style="fill:var(--surface)"/><path d="M10 10.2l.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1-1.5-1.5 2.1-.3z" stroke-width="1.3"/></svg>
+      Karten
     </button>
     <button class="tab" data-view="profile">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-3.5 4.4-5 8-5s6.5 1.5 8 5"/></svg>
@@ -647,12 +758,102 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
         <div id="s-covers-status" class="hint"></div>
       </div>
       <div class="panel">
+        <h3>Pokémon-Karten</h3>
+        <p class="hint">Kartenpreise kommen von Cardmarket (Trendpreis, Near Mint) und aktualisieren sich alle paar Tage von selbst. Hier kannst du sie sofort neu holen.</p>
+        <button class="btn" id="s-cards-refresh">Alle Kartenpreise aktualisieren</button>
+        <div id="s-cards-status" class="hint"></div>
+      </div>
+      <div class="panel">
         <h3>Preise aktualisieren</h3>
         <p class="hint">Holt für alle Platten mit Discogs-Verknüpfung den aktuellen Preis. Dauert etwa eine Sekunde pro Platte.</p>
         <button class="btn" id="s-refresh">Alle Preise aktualisieren</button>
         <div id="s-refresh-status" class="hint"></div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- Pokémon cards: add -->
+<section class="sheet" id="sheet-cadd" hidden aria-label="Karte hinzufügen">
+  <div class="wrap">
+    <div class="sheet-head"><h2>Karte hinzufügen</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body">
+      <div class="seg" role="group" aria-label="Ziel">
+        <button id="cadd-col" aria-pressed="true">In die Sammlung</button>
+        <button id="cadd-wish" aria-pressed="false">Auf die Wunschliste</button>
+      </div>
+      <div class="big-opts">
+        <div class="big-opt dusk-ic">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+          <div><b>Karte fotografieren</b><span>Erkennt Karte, Set und Zustand und holt den Cardmarket-Preis</span></div>
+          <input type="file" id="cin-photo" accept="image/*" capture="environment" aria-label="Karte fotografieren">
+        </div>
+        <div class="big-opt dusk-ic">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4.5 3.5"/></svg></div>
+          <div><b>Foto aus der Galerie</b><span>Ein schon gemachtes Foto der Vorderseite</span></div>
+          <input type="file" id="cin-gallery" accept="image/*" aria-label="Foto aus der Galerie wählen">
+        </div>
+      </div>
+      <div class="field">
+        <label for="cin-q">Suchen nach Name und Nummer</label>
+        <div class="or"><input id="cin-q" class="search" placeholder="z. B. Glurak 4/102" autocomplete="off" enterkeyhint="search"><button class="btn small primary" id="cin-go">Suchen</button></div>
+      </div>
+      <p class="hint">Tipp fürs Foto: Karte flach auf einen dunklen Untergrund legen, gerade von oben, ohne Blitz-Spiegelung. Für eine genaue Zustands-Einschätzung am besten ohne Hülle.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Pokémon cards: results -->
+<section class="sheet" id="sheet-cres" hidden aria-label="Kartentreffer">
+  <div class="wrap">
+    <div class="sheet-head"><h2 id="cres-title">Welche Karte?</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body"><div id="cres-status" hidden></div><div class="pgrid" id="cres-list"></div></div>
+  </div>
+</section>
+
+<!-- Pokémon cards: editor -->
+<section class="sheet" id="sheet-cedit" hidden aria-label="Karte bearbeiten">
+  <div class="wrap">
+    <div class="sheet-head"><h2 id="ce-title">Neue Karte</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <form class="sheet-body" id="ce-form" autocomplete="off">
+      <div class="ce-top">
+        <div class="ce-img" id="ce-img"></div>
+        <div class="ce-side"><b id="ce-name"></b><span id="ce-set"></span><button type="button" class="btn small" id="ce-other">Andere Karte wählen</button></div>
+      </div>
+      <div class="seg" id="ce-listseg" role="group" aria-label="Liste"><button type="button" data-l="collection">Sammlung</button><button type="button" data-l="wishlist">Wunschliste</button></div>
+      <div id="ce-cond" hidden></div>
+      <div class="fgrid">
+        <div class="field"><label for="c-condition">Zustand</label><select id="c-condition"></select></div>
+        <div class="field"><label for="c-variant">Variante</label><select id="c-variant"></select></div>
+        <div class="field"><label for="c-lang">Sprache der Karte</label><select id="c-lang"></select></div>
+        <div class="field"><label for="c-qty">Anzahl</label><input id="c-qty" inputmode="numeric" maxlength="3"></div>
+        <div class="field"><label for="c-grader">Gegradet</label><select id="c-grader"><option value="">Nein</option><option>PSA</option><option>BGS</option><option>CGC</option><option>TAG</option><option>Andere</option></select></div>
+        <div class="field"><label for="c-grade">Note</label><input id="c-grade" inputmode="decimal" placeholder="z. B. 9"></div>
+      </div>
+      <div class="value-box">
+        <div class="field"><label for="c-value">Wert pro Karte in €</label><input id="c-value" class="mono" inputmode="decimal" placeholder="0"></div>
+        <button type="button" class="btn small" id="ce-price" style="min-height:48px">Cardmarket-Preis</button>
+      </div>
+      <p class="hint" id="ce-pricehint"></p>
+      <div class="field"><label for="c-notes">Notizen</label><textarea id="c-notes" placeholder="Wo gekauft, Besonderheiten …"></textarea></div>
+      <div class="btn-row"><button type="button" class="btn" data-close>Abbrechen</button><button type="submit" class="btn primary">Speichern</button></div>
+    </form>
+  </div>
+</section>
+
+<!-- Pokémon cards: detail -->
+<section class="sheet" id="sheet-cdetail" hidden aria-label="Kartendetails">
+  <div class="wrap">
+    <div class="sheet-head"><span class="eyebrow" id="cd-where"></span><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body" id="cd-body"></div>
+  </div>
+</section>
+
+<!-- Pokémon cards: one set -->
+<section class="sheet" id="sheet-set" hidden aria-label="Set">
+  <div class="wrap">
+    <div class="sheet-head"><h2 id="set-title">Set</h2><button class="icon-btn" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sheet-body" id="set-body"></div>
   </div>
 </section>
 
@@ -673,15 +874,25 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const CONDITIONS = { M: "Mint", NM: "Near Mint", "VG+": "Very Good Plus", VG: "Very Good", "G+": "Good Plus", G: "Good", F: "Fair", P: "Poor" };
 const DISCOGS_COND = { M: "Mint (M)", NM: "Near Mint (NM or M-)", "VG+": "Very Good Plus (VG+)", VG: "Very Good (VG)", "G+": "Good Plus (G+)", G: "Good (G)", F: "Fair (F)", P: "Poor (P)" };
 
-const S = { records: [], profile: {}, settings: {}, view: "collection", q: "", sort: "added", loaded: false, addTarget: "collection", draft: null, detailId: null };
+const S = { records: [], profile: {}, settings: {}, view: "collection", q: "", sort: "added", loaded: false, addTarget: "collection", draft: null, detailId: null,
+  cards: [], cview: "collection", csort: "added", caddTarget: "collection", cdraft: null, cdetailId: null, setId: null, setData: null, setFilter: "all", setIndex: null };
 
 /* ---------------- IndexedDB ---------------- */
 const IDB = (() => {
   let dbp;
   const open = () => dbp || (dbp = new Promise((res, rej) => {
-    const r = indexedDB.open("plattenkiste", 1);
-    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore("records", { keyPath: "id" }); d.createObjectStore("blobs"); d.createObjectStore("kv"); };
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    const r = indexedDB.open("plattenkiste", 2);
+    r.onupgradeneeded = () => {
+      const d = r.result, has = n => d.objectStoreNames.contains(n);
+      if (!has("records")) d.createObjectStore("records", { keyPath: "id" });
+      if (!has("blobs")) d.createObjectStore("blobs");
+      if (!has("kv")) d.createObjectStore("kv");
+      if (!has("cards")) d.createObjectStore("cards", { keyPath: "id" }); // Pokémon cards (since v2)
+    };
+    // A newer app version upgrades the storage: older open windows let go, so the upgrade never hangs.
+    r.onsuccess = () => { const d = r.result; d.onversionchange = () => { d.close(); location.reload(); }; res(d); };
+    r.onblocked = () => toast("Die App ist noch in einem anderen Fenster offen. Schließ es, dann geht es weiter.");
+    r.onerror = () => rej(r.error);
   }));
   const tx = async (store, mode, fn) => { const d = await open(); return new Promise((res, rej) => { const t = d.transaction(store, mode); const st = t.objectStore(store); const out = fn(st); t.oncomplete = () => res(out && "result" in out ? out.result : out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
   return {
@@ -977,17 +1188,17 @@ async function geminiCall(model, body, ms = 25000) {
   } catch (e) { if (e.name === "AbortError") return { ok: false, status: 408 }; throw e; }
   finally { clearTimeout(t); }
 }
-async function geminiIdentify(blob) {
-  const small = await shrink(blob, 800, 0.8);
+async function geminiIdentify(blob, customPrompt, px = 800) {
+  const small = await shrink(blob, px, 0.85);
   const b64 = (await toDataURL(small)).split(",")[1];
-  const prompt = `Du bist ein Experte für Schallplatten mit Discogs-Wissen. Das Foto zeigt das Cover (oder die Rückseite) einer Schallplatte.
+  const prompt = customPrompt || `Du bist ein Experte für Schallplatten mit Discogs-Wissen. Das Foto zeigt das Cover (oder die Rückseite) einer Schallplatte.
 Bestimme Künstler und Album. Lies alles, was auf dem Bild steht (Label, Katalognummer, Barcode, Sticker).
 Antworte nur mit JSON in genau dieser Form:
 {"found":true,"artist":"","title":"","year":1977,"label":"","catno":"","country":"","genre":"Rock","barcode":"","confidence":"hoch"}
 "year" ist das Jahr der Erstveröffentlichung, falls die Pressung nicht erkennbar ist. "confidence" ist hoch, mittel oder niedrig.
 Wenn du das Album nicht erkennst: {"found":false} und fülle nur, was du lesen kannst.`;
   const makeBody = thinking => ({ contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: b64 } }, { text: prompt }] }],
-    generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens: 1024, ...(thinking ? { thinkingConfig: thinking } : {}) } });
+    generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens: 2048, ...(thinking ? { thinkingConfig: thinking } : {}) } });
   const candidates = await geminiModels(), tried = new Set();
   let r = null, discovered = false, keyBad = false;
   while (candidates.length) {
@@ -1379,7 +1590,7 @@ function doQuery() {
 }
 $("#btn-query").onclick = doQuery;
 $("#in-query").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); doQuery(); } });
-$("#tab-add").onclick = () => { setAddTarget(S.view === "wishlist" ? "wishlist" : "collection"); $("#add-hint").textContent = token() ? "" : "Tipp: Verbinde Discogs im Profil (Einstellungen), dann bekommst du Pressung und Preis automatisch."; openSheet("#sheet-add"); };
+$("#tab-add").onclick = () => { if (S.view === "cards") { openCardAdd(); return; } setAddTarget(S.view === "wishlist" ? "wishlist" : "collection"); $("#add-hint").textContent = token() ? "" : "Tipp: Verbinde Discogs im Profil (Einstellungen), dann bekommst du Pressung und Preis automatisch."; openSheet("#sheet-add"); };
 $("#scan-manual").onclick = () => { stopScanner(); openEditor(newDraft(), { replace: true }); setStatus("ok", "Tippe die Ziffern unter dem Strichcode ins Feld „Barcode“ und dann auf „Bei Discogs suchen“."); setTimeout(() => $("#f-barcode").focus(), 300); };
 $("#res-manual").onclick = () => { const base = S.draftBase || newDraft({ barcode: S.pending?.barcode || "" }); S.draftBase = null; openEditor(base, { replace: true }); };
 
@@ -1760,7 +1971,8 @@ $("#s-export").onclick = async () => {
   const blobs = {};
   for (const r of S.records) if (r.coverBlobId) { const b = await IDB.get("blobs", r.coverBlobId).catch(() => null); if (b) blobs[r.coverBlobId] = await toDataURL(b); }
   if (S.profile.avatarBlobId) { const b = await IDB.get("blobs", S.profile.avatarBlobId).catch(() => null); if (b) blobs[S.profile.avatarBlobId] = await toDataURL(b); }
-  const data = { app: "plattenkiste", version: 1, exportedAt: new Date().toISOString(), records: S.records, profile: S.profile, blobs };
+  for (const c of S.cards) if (c.photoBlobId) { const b = await IDB.get("blobs", c.photoBlobId).catch(() => null); if (b) blobs[c.photoBlobId] = await toDataURL(b); }
+  const data = { app: "plattenkiste", version: 2, exportedAt: new Date().toISOString(), records: S.records, cards: S.cards, profile: S.profile, blobs };
   const file = new Blob([JSON.stringify(data)], { type: "application/json" });
   const name = `plattenkiste-${new Date().toISOString().slice(0, 10)}.json`;
   try { if (navigator.canShare && navigator.canShare({ files: [new File([file], name, { type: "application/json" })] })) { await navigator.share({ files: [new File([file], name, { type: "application/json" })], title: "Plattenkiste-Sicherung" }); return; } } catch (e) { if (e.name === "AbortError") return; }
@@ -1774,8 +1986,9 @@ $("#s-import").addEventListener("change", async e => {
     if (data.app !== "plattenkiste" || !Array.isArray(data.records)) throw 0;
     for (const [id, url] of Object.entries(data.blobs || {})) { const b = await (await fetch(url)).blob(); await IDB.put("blobs", b, id); }
     for (const r of data.records) await IDB.put("records", r);
+    for (const c of data.cards || []) await IDB.put("cards", c);
     if (data.profile) await IDB.put("kv", data.profile, "profile");
-    await loadAll(); toast(`${data.records.length} Einträge geladen`);
+    await loadAll(); toast(`${data.records.length} Platten${data.cards ? ` und ${data.cards.length} Karten` : ""} geladen`);
   } catch { toast("Diese Datei ist keine Plattenkiste-Sicherung."); }
 });
 $("#s-covers").onclick = async () => {
@@ -1823,13 +2036,16 @@ function hideRaw(sel) {
   if (sel === "#sheet-scan") stopScanner();
   if (sel === "#sheet-edit") S.draft = null;
   if (sel === "#sheet-detail") S.detailId = null;
+  if (sel === "#sheet-cedit") S.cdraft = null;
+  if (sel === "#sheet-cdetail") S.cdetailId = null;
+  if (sel === "#sheet-set") { S.setId = null; S.setData = null; }
   if (!stack.length || (stack.length === 1 && stack[0] === sel)) document.body.style.overflow = "";
 }
 function closeSheet() { if (stack.length) history.back(); }
 window.addEventListener("popstate", () => { const top = stack.pop(); if (top) hideRaw(top); if (!stack.length) document.body.style.overflow = ""; });
 document.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
 document.querySelectorAll(".tab[data-view]").forEach(t => t.onclick = () => setView(t.dataset.view));
-const VIEW_ORDER = { collection: 0, wishlist: 1, profile: 3 };
+const VIEW_ORDER = { collection: 0, wishlist: 1, cards: 3, profile: 4 };
 function setView(v) {
   const from = VIEW_ORDER[S.view], to = VIEW_ORDER[v];
   S.view = v; S.q = ""; render(); window.scrollTo(0, 0);
@@ -1839,6 +2055,566 @@ function setView(v) {
 
 let toastT;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+
+/* ---------------- Pokémon cards ---------------- */
+// Card data, images and Cardmarket prices come from TCGdex (free, no key, German names).
+// A saved card: {id, list, tcgId, name, setId, setName, number, total, rarity, imageBase, variants[], variant,
+//   condition (Cardmarket scale), cardLang, qty, graded {company, grade}|null, value (per card), valueSource, valueDate,
+//   marketNM, cm (Cardmarket price snapshot), condSummary, condNotes, photoBlobId, notes, addedAt, updatedAt}
+const TCG = "https://api.tcgdex.net/v2/";
+async function tcg(lang, path) {
+  const r = await fetch(TCG + lang + path);
+  if (r.status === 404) return null;
+  if (!r.ok) { const e = new Error("http"); e.status = r.status; throw e; }
+  return r.json();
+}
+const CCOND = { MT: ["Mint", 1], NM: ["Near Mint", 1], EX: ["Excellent", .85], GD: ["Good", .7], LP: ["Light Played", .55], PL: ["Played", .4], PO: ["Poor", .25] };
+const CVAR = { normal: "Normal", holo: "Holo", reverse: "Reverse Holo", firstEdition: "1. Edition" };
+const CLANG = { de: "Deutsch", en: "Englisch", fr: "Französisch", it: "Italienisch", es: "Spanisch", pt: "Portugiesisch", ja: "Japanisch", ko: "Koreanisch", zh: "Chinesisch" };
+const normNum = s => String(s || "").toUpperCase().replace(/\s/g, "").replace(/^0+(?=\d)/, "").replace(/^([A-Z]+)0+(?=\d)/, "$1");
+const setOfId = id => String(id || "").replace(/-[^-]+$/, "");
+const tcgImg = (base, q = "low") => base ? `${base}/${q}.webp` : "";
+const qtyOf = c => Math.max(1, parseInt(c.qty) || 1);
+const cardsVal = l => l.reduce((a, c) => a + (num(c.value) || 0) * qtyOf(c), 0);
+const cardsQty = l => l.reduce((a, c) => a + qtyOf(c), 0);
+
+// All sets, grouped by series, newest first. Cached for a week.
+let setIdxP = null;
+function setIndex() {
+  if (S.setIndex) return Promise.resolve(S.setIndex);
+  return setIdxP || (setIdxP = (async () => {
+    const cached = await IDB.get("kv", "tcgSets").catch(() => null);
+    if (cached && cached.v === 1 && Date.now() - cached.at < 7 * 864e5) { S.setIndex = cached; return cached; }
+    const [enSer, deSer] = await Promise.all([tcg("en", "/series"), tcg("de", "/series").catch(() => [])]);
+    const deById = new Map((deSer || []).map(s => [s.id, s]));
+    const series = (await Promise.all((enSer || []).filter(s => s.id !== "tcgp").map(async s => {
+      const [en, de] = await Promise.all([tcg("en", "/series/" + s.id).catch(() => null), deById.has(s.id) ? tcg("de", "/series/" + s.id).catch(() => null) : null]);
+      const deSets = new Map(((de && de.sets) || []).map(x => [x.id, x]));
+      return {
+        id: s.id, name: (deById.get(s.id) || s).name, date: (en && en.releaseDate) || "",
+        sets: ((en && en.sets) || []).map(x => {
+          const d = deSets.get(x.id) || {};
+          return { id: x.id, name: d.name || x.name, de: !!d.id, logo: d.logo || x.logo || "", symbol: x.symbol || d.symbol || "", official: (x.cardCount || {}).official || 0, total: (x.cardCount || {}).total || 0 };
+        }).reverse()
+      };
+    }))).filter(s => s.sets.length).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const idx = { v: 1, at: Date.now(), series };
+    S.setIndex = idx; IDB.put("kv", idx, "tcgSets").catch(() => {});
+    return idx;
+  })().catch(e => { setIdxP = null; throw e; }));
+}
+function setById(id) {
+  for (const s of (S.setIndex || {}).series || []) for (const x of s.sets) if (x.id === id) return { ...x, serie: s.id, serieName: s.name };
+  return null;
+}
+// Old German sets have no German scans: fall back to the English image of the same card.
+function cardImgBase(c) {
+  if (c.imageBase) return c.imageBase;
+  if (c.image) return c.image;
+  const setId = c.setId || setOfId(c.tcgId || c.id), s = setById(setId), serie = c.serie || (s && s.serie);
+  return serie ? `https://assets.tcgdex.net/en/${serie}/${setId}/${c.localId || c.number}` : "";
+}
+function cardImgHTML(c, q = "low") {
+  const base = cardImgBase(c);
+  return `<div class="pimg"><span class="pimg-ph">${esc(c.name || "?")}</span>${base ? `<img src="${esc(tcgImg(base, q))}" alt="" loading="lazy" draggable="false" onerror="this.hidden=true">` : ""}</div>`;
+}
+async function tcgCard(id) {
+  let c = await tcg("de", "/cards/" + encodeURIComponent(id)).catch(() => null), lang = "de";
+  if (!c) { c = await tcg("en", "/cards/" + encodeURIComponent(id)); lang = "en"; }
+  if (!c) return null;
+  if (!c.image && lang !== "en") { const en = await tcg("en", "/cards/" + encodeURIComponent(id)).catch(() => null); if (en && en.image) c.image = en.image; }
+  return c;
+}
+const cmOf = c => (c && c.pricing && c.pricing.cardmarket) || null;
+// Cardmarket trend for the variant (TCGdex's "-holo" fields are the reverse-holo prices).
+function cmBase(cm, variant) {
+  if (!cm) return null;
+  const h = variant === "reverse" ? "-holo" : "";
+  const v = cm["trend" + h] || cm["avg30" + h] || cm["avg7" + h] || cm["avg" + h];
+  return v ? Math.round(v * 100) / 100 : null;
+}
+// Value per card = Near-Mint trend × a discount for worse conditions (an estimate, shown as such).
+function applyCardPrice(d) {
+  d.marketNM = cmBase(d.cm, d.variant);
+  if (d.valueSource === "manuell" || (d.graded && d.graded.company)) return;
+  if (d.marketNM == null) { d.value = null; d.valueSource = null; return; }
+  d.value = Math.round(d.marketNM * (CCOND[d.condition] || CCOND.NM)[1] * 100) / 100;
+  d.valueSource = "cardmarket"; d.valueDate = new Date().toISOString().slice(0, 10);
+}
+function cardDraftFrom(c, extra = {}) {
+  const s = setById((c.set && c.set.id) || setOfId(c.id)) || {};
+  const vars = c.variants || {};
+  const avail = Object.keys(CVAR).filter(k => vars[k]);
+  const variant = extra.variant && (!avail.length || avail.includes(extra.variant)) ? extra.variant : avail.includes("normal") ? "normal" : avail[0] || "normal";
+  const d = {
+    id: uid(), _new: true, list: S.caddTarget, tcgId: c.id, name: c.name, setId: (c.set && c.set.id) || s.id || setOfId(c.id),
+    setName: (c.set && c.set.name) || s.name || "", number: c.localId, total: (c.set && c.set.cardCount && c.set.cardCount.official) || s.official || "",
+    rarity: c.rarity || "", imageBase: c.image || cardImgBase({ id: c.id, localId: c.localId }), variants: avail,
+    condition: "NM", cardLang: "de", qty: 1, currency: "EUR", cm: cmOf(c), addedAt: new Date().toISOString(), ...extra, variant
+  };
+  applyCardPrice(d);
+  return d;
+}
+
+const CardStore = {
+  async save(c) {
+    const body = JSON.parse(JSON.stringify(c)); for (const k of Object.keys(body)) if (k.startsWith("_")) delete body[k];
+    await IDB.put("cards", body);
+    const i = S.cards.findIndex(x => x.id === body.id); if (i >= 0) S.cards[i] = body; else S.cards.push(body);
+    render(); if (S.cdetailId === body.id) refreshCardDetail(); if (S.setId) renderSet();
+    return body;
+  },
+  async remove(c) {
+    await IDB.del("cards", c.id); if (c.photoBlobId) IDB.del("blobs", c.photoBlobId).catch(() => {});
+    S.cards = S.cards.filter(x => x.id !== c.id); render(); if (S.setId) renderSet();
+  }
+};
+
+/* --- Recognising a card from a photo --- */
+const CARD_PROMPT = `Du bist Experte für Pokémon-Sammelkarten und bewertest Karten wie ein strenger Cardmarket-Händler.
+Das Foto zeigt die Vorderseite einer Pokémon-Karte (evtl. in einer Hülle, einem Toploader oder einem Grading-Slab).
+Lies genau ab:
+- "name": Kartenname exakt wie gedruckt (inkl. Zusätzen wie V, VMAX, VSTAR, ex, GX, EX).
+- "name_en": der englische Kartenname.
+- "language": Sprache der Karte als Code (de, en, fr, it, es, pt, ja, ko, zh).
+- "number" und "total": die Kartennummer unten, z. B. "136/189" → number "136", total "189". Auch Formate wie "TG03/TG30", "SV49/SV94", "SWSH066" (dann total leer).
+- "set_name": Set-Name, falls du ihn am Set-Symbol oder Kürzel erkennst. "set_code": das kleine Kürzel neben der Nummer (z. B. "PAL"), falls lesbar.
+- "rarity": Seltenheit, falls erkennbar.
+- "variant": "normal", "holo" (das Bild glänzt), "reverse" (der Rahmen/Hintergrund glänzt, nicht das Bild) oder "firstEdition" (Stempel "Edition 1"/"1st Edition").
+Schätze den Zustand nach Cardmarket-Skala: "MT" (Mint), "NM" (Near Mint), "EX" (Excellent), "GD" (Good), "LP" (Light Played), "PL" (Played), "PO" (Poor).
+Prüfe dafür Zentrierung (Ränder links/rechts und oben/unten gleich breit?), Ecken (weiß, abgestoßen, rund?), Kanten (Abrieb, weiße Stellen) und Oberfläche (Kratzer, Knicke, Dellen, Abdrücke, Verfärbung). Wenn du etwas wegen Hülle oder Spiegelung nicht sicher beurteilen kannst, schreib das dazu.
+Steckt die Karte in einem Grading-Slab (PSA, BGS, CGC, TAG …), gib Firma und Note bei "graded" an.
+Antworte nur mit JSON genau in dieser Form:
+{"found":true,"name":"","name_en":"","language":"de","number":"","total":"","set_name":"","set_code":"","rarity":"","variant":"normal","condition":"NM","condition_notes":{"Zentrierung":"","Ecken":"","Kanten":"","Oberfläche":""},"condition_summary":"","graded":{"company":"","grade":""},"confidence":"hoch"}
+Alle Texte auf Deutsch, kurz. "confidence" ist hoch, mittel oder niedrig. Wenn keine Pokémon-Karte zu sehen ist: {"found":false}.`;
+
+function cresStatus(kind, text) {
+  const el = $("#cres-status");
+  if (!kind) { el.hidden = true; return; }
+  el.hidden = false; el.className = "status " + (kind === "busy" ? "" : kind);
+  el.innerHTML = (kind === "busy" ? '<span class="spinner"></span>' : "") + `<span>${esc(text)}</span>`;
+}
+function openCardAdd() {
+  setCaddTarget(S.cview === "wish" ? "wishlist" : "collection");
+  $("#cin-q").value = ""; openSheet("#sheet-cadd");
+}
+function setCaddTarget(t) { S.caddTarget = t; $("#cadd-col").setAttribute("aria-pressed", t === "collection"); $("#cadd-wish").setAttribute("aria-pressed", t === "wishlist"); }
+$("#cadd-col").onclick = () => setCaddTarget("collection");
+$("#cadd-wish").onclick = () => setCaddTarget("wishlist");
+async function scanCard(file) {
+  if (!file) return;
+  S.cres = null; $("#cres-list").innerHTML = ""; $("#cres-title").textContent = "Karte erkennen";
+  cresStatus("busy", "Erkenne die Karte und ihren Zustand …");
+  openSheet("#sheet-cres", { replace: true });
+  if (!gemKey()) { cresStatus("warn", "Für die Karten-Erkennung brauchst du den kostenlosen Gemini-Schlüssel (Profil → Einstellungen). Bis dahin: Name und Nummer im Suchfeld eintippen."); return; }
+  let blob, g;
+  try { blob = await shrink(file, 1600, 0.9); g = await geminiIdentify(blob, CARD_PROMPT, 1280); }
+  catch (e) { cresStatus("warn", lookupErr(e)); return; }
+  if (!g || g.found === false || !(g.name || g.name_en)) { cresStatus("warn", "Ich konnte keine Karte erkennen. Fotografiere die Vorderseite gerade von oben, scharf und ohne Spiegelung."); return; }
+  S.cscan = { g, blob };
+  const label = `${g.name || g.name_en}${g.number ? " · " + g.number + (g.total ? "/" + g.total : "") : ""}`;
+  $("#cres-title").textContent = label;
+  cresStatus("busy", `Erkannt: ${label}. Suche die Karte in allen Sets …`);
+  const res = await findCards(g).catch(() => []);
+  showCardResults(res, g, true);
+}
+$("#cin-photo").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; scanCard(f); });
+$("#cin-gallery").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; scanCard(f); });
+// "Glurak 4/102", "Pikachu 25", "Glurak"
+function parseCardQuery(v) {
+  const m = String(v).trim().match(/^(.*?)\s+#?([A-Za-z]{0,5}\d+[a-z]?)(?:\s*\/\s*([A-Za-z]{0,5}\d+))?$/);
+  return m && m[1] ? { name: m[1].trim(), number: m[2], total: (m[3] || "").replace(/\D/g, "") } : { name: String(v).trim() };
+}
+async function cardSearch() {
+  const v = $("#cin-q").value.trim(); if (!v) return;
+  const q = parseCardQuery(v);
+  S.cscan = null; S.cres = null; $("#cres-list").innerHTML = ""; $("#cres-title").textContent = "Suche: " + v;
+  cresStatus("busy", "Suche in allen Sets …");
+  openSheet("#sheet-cres", { replace: true });
+  const res = await findCards(q).catch(() => []);
+  showCardResults(res, null, false);
+}
+$("#cin-go").onclick = cardSearch;
+$("#cin-q").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); cardSearch(); } });
+
+async function findCards(q) {
+  await setIndex().catch(() => null);
+  const langs = [...new Set([q.language, "de", "en"])].filter(l => ["de", "en", "fr", "it", "es", "pt"].includes(l));
+  const names = [...new Set([q.name, q.name_en].filter(Boolean).map(s => String(s).trim()))];
+  const found = new Map();
+  await Promise.all(langs.flatMap(l => names.map(async n => {
+    const list = await tcg(l, "/cards?name=" + encodeURIComponent(n)).catch(() => null);
+    for (const c of list || []) if (!found.has(c.id) || l === "de") found.set(c.id, c);
+  })));
+  const numK = normNum(q.number), tot = parseInt(q.total) || 0;
+  // Name not found or not with this number: look the number up in every set of that size.
+  if (numK && tot && ![...found.values()].some(c => normNum(c.localId) === numK)) {
+    const sets = ((S.setIndex || {}).series || []).flatMap(s => s.sets).filter(s => s.official === tot).slice(0, 10);
+    await Promise.all(sets.map(async s => {
+      const d = await tcg(s.de ? "de" : "en", "/sets/" + s.id).catch(() => null);
+      for (const c of (d && d.cards) || []) if (normNum(c.localId) === numK) found.set(c.id, c);
+    }));
+  }
+  const nk = normalize(q.name), nke = normalize(q.name_en);
+  return [...found.values()].map(c => ({ c, s: setById(setOfId(c.id)) }))
+    .filter(x => !S.setIndex || x.s) // drops Pokémon TCG Pocket (digital) cards
+    .map(x => {
+      let sc = 0;
+      if (numK && normNum(x.c.localId) === numK) sc += 10;
+      if (tot && x.s && (x.s.official === tot || x.s.total === tot)) sc += 8;
+      if (q.set_name && x.s && sameish(x.s.name, q.set_name)) sc += 5;
+      const cn = normalize(x.c.name); if (cn && (cn === nk || cn === nke)) sc += 3;
+      return { ...x, sc };
+    })
+    .sort((a, b) => b.sc - a.sc || (setOrder(a.s) - setOrder(b.s)))
+    .slice(0, 60);
+}
+// Newer sets first when scores tie.
+function setOrder(s) {
+  if (!s) return 1e6; let i = 0;
+  for (const se of (S.setIndex || {}).series || []) for (const x of se.sets) { if (x.id === s.id) return i; i++; }
+  return 1e6;
+}
+function showCardResults(list, g, auto) {
+  S.cres = list; S.cresG = g;
+  const box = $("#cres-list");
+  if (!list.length) {
+    box.innerHTML = "";
+    cresStatus("warn", g ? `Erkannt: ${g.name || g.name_en} ${g.number || ""}${g.total ? "/" + g.total : ""}, aber nicht in der Kartendatenbank gefunden. Versuch die Suche mit dem Namen, wie er auf der Karte steht.` : "Nichts gefunden. Prüfe die Schreibweise (deutscher oder englischer Name) und die Nummer.");
+    return;
+  }
+  const top = list[0];
+  if (auto && g && top.sc >= 18 && (!list[1] || list[1].sc < top.sc)) { pickCard(top.c.id, g); return; }
+  cresStatus("ok", `${list.length} Treffer. Tippe auf deine Karte${g && g.number ? ` (Nummer ${g.number}${g.total ? "/" + g.total : ""})` : ""}.`);
+  box.innerHTML = list.map((x, i) => `<button class="pcard" data-ci="${i}" style="--i:${Math.min(i, 15)}">${cardImgHTML({ image: x.c.image, id: x.c.id, localId: x.c.localId, name: x.c.name })}
+    <span class="pc-t">${esc(x.c.name)}</span><span class="pc-s">${esc(x.s ? x.s.name : setOfId(x.c.id))} · ${esc(x.c.localId)}${x.s && x.s.official ? "/" + x.s.official : ""}</span></button>`).join("");
+  box.querySelectorAll("[data-ci]").forEach(b => b.onclick = () => pickCard(list[+b.dataset.ci].c.id, g));
+}
+async function pickCard(id, g, opts = { replace: true }) {
+  if (opts.replace) cresStatus("busy", "Lade Karte und Cardmarket-Preis …");
+  let c;
+  try { c = await tcgCard(id); } catch (e) { if (opts.replace) cresStatus("warn", lookupErr(e)); else toast(lookupErr(e)); return; }
+  if (!c) { toast("Diese Karte konnte nicht geladen werden."); return; }
+  const extra = {};
+  if (g) {
+    if (CVAR[g.variant]) extra.variant = g.variant;
+    if (CCOND[g.condition]) extra.condition = g.condition;
+    if (CLANG[g.language]) extra.cardLang = g.language;
+    const notes = g.condition_notes && Object.entries(g.condition_notes).filter(([, v]) => v);
+    if (notes && notes.length) extra.condNotes = Object.fromEntries(notes);
+    if (g.condition_summary) extra.condSummary = g.condition_summary;
+    if (g.graded && g.graded.company) extra.graded = { company: String(g.graded.company).toUpperCase(), grade: String(g.graded.grade || "") };
+  }
+  const d = cardDraftFrom(c, extra);
+  if (g && S.cscan && S.cscan.g === g) d._blob = S.cscan.blob;
+  openCardEditor(d, opts);
+}
+
+/* --- Editor --- */
+function openCardEditor(d, opts) { S.cdraft = d; fillCard(); openSheet("#sheet-cedit", opts); }
+function fillCard() {
+  const d = S.cdraft; if (!d) return;
+  $("#ce-title").textContent = d._new ? (d.list === "wishlist" ? "Neuer Kartenwunsch" : "Neue Karte") : "Karte bearbeiten";
+  $("#ce-img").innerHTML = cardImgHTML(d, "high");
+  $("#ce-name").textContent = d.name;
+  $("#ce-set").textContent = `${d.setName} · ${d.number}${d.total ? "/" + d.total : ""}${d.rarity ? " · " + d.rarity : ""}`;
+  $("#ce-other").hidden = !(d._new && S.cres && S.cres.length > 1);
+  $("#ce-listseg").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.l === d.list));
+  const vars = d.variants && d.variants.length ? d.variants : Object.keys(CVAR);
+  if (!vars.includes(d.variant)) vars.push(d.variant);
+  $("#c-variant").innerHTML = vars.map(k => `<option value="${k}">${CVAR[k] || k}</option>`).join("");
+  $("#c-variant").value = d.variant;
+  $("#c-condition").innerHTML = Object.entries(CCOND).map(([k, v]) => `<option value="${k}">${k} · ${v[0]}</option>`).join("");
+  $("#c-condition").value = d.condition || "NM";
+  $("#c-lang").innerHTML = Object.entries(CLANG).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+  $("#c-lang").value = d.cardLang || "de";
+  $("#c-qty").value = qtyOf(d);
+  $("#c-grader").value = (d.graded && d.graded.company) ? (["PSA", "BGS", "CGC", "TAG"].includes(d.graded.company) ? d.graded.company : "Andere") : "";
+  $("#c-grade").value = (d.graded && d.graded.grade) || "";
+  $("#c-value").value = d.value != null ? String(d.value).replace(".", ",") : "";
+  $("#c-notes").value = d.notes || "";
+  $("#ce-pricehint").textContent = cardPriceText(d);
+  const box = $("#ce-cond");
+  if (d.condSummary || d.condNotes) {
+    box.hidden = false; box.className = "cond-box";
+    box.innerHTML = condHTML(d, true);
+  } else box.hidden = true;
+}
+function condHTML(c, fromScan) {
+  const notes = Object.entries(c.condNotes || {});
+  return `<div class="cond-head"><span class="cond-grade">${esc(c.condition || "?")}</span><div><b>${fromScan ? "KI-Einschätzung des Zustands" : "Zustand laut Foto-Analyse"}</b><span>${esc(c.condSummary || (CCOND[c.condition] || [""])[0])}</span></div></div>
+    ${notes.length ? `<dl class="cond-list">${notes.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` : ""}
+    <p class="hint" style="margin:0">Nur eine Schätzung vom Foto. Bei wertvollen Karten lohnt ein genauer Blick mit Licht von der Seite.</p>`;
+}
+function cardPriceText(d) {
+  if (d.graded && d.graded.company) return "Für gegradete Karten hat Cardmarket keinen Preis in den Daten. Trag den Wert selbst ein.";
+  if (d.valueSource === "manuell") return "Eigener Wert." + (d.marketNM != null ? ` Cardmarket-Trend (Near Mint): ${fmtMoney(d.marketNM)}.` : "");
+  if (d.valueSource === "cardmarket" && d.marketNM != null) {
+    const f = (CCOND[d.condition] || CCOND.NM)[1];
+    return `Cardmarket-Trend ${fmtMoney(d.marketNM)} für Near Mint${d.variant === "reverse" ? " (Reverse Holo)" : ""}` + (f < 1 ? `, × ${Math.round(f * 100)} % für ${CCOND[d.condition][0]} (geschätzt).` : ".");
+  }
+  return d.tcgId ? "Für diese Karte hat Cardmarket gerade keinen Preis. Trag einen eigenen Wert ein." : "";
+}
+function readCard() {
+  const d = S.cdraft; if (!d) return;
+  d.variant = $("#c-variant").value || d.variant;
+  d.condition = $("#c-condition").value || "NM";
+  d.cardLang = $("#c-lang").value || "de";
+  d.qty = Math.max(1, parseInt($("#c-qty").value) || 1);
+  const gc = $("#c-grader").value; d.graded = gc ? { company: gc, grade: $("#c-grade").value.trim() } : null;
+  d.notes = $("#c-notes").value.trim();
+  const v = num($("#c-value").value);
+  if (v == null) { if (d.valueSource === "manuell") { d.valueSource = null; d.value = null; } }
+  else if (d.valueSource !== "cardmarket" || d.value == null || Math.abs(v - d.value) > 0.001) { d.value = v; d.valueSource = "manuell"; }
+}
+["#c-variant", "#c-condition", "#c-grader"].forEach(sel => $(sel).addEventListener("change", () => { readCard(); applyCardPrice(S.cdraft); fillCard(); }));
+$("#ce-listseg").addEventListener("click", e => { const b = e.target.closest("[data-l]"); if (!b || !S.cdraft) return; readCard(); S.cdraft.list = b.dataset.l; fillCard(); });
+$("#ce-other").onclick = () => {
+  readCard(); const list = S.cres, g = S.cresG;
+  openSheet("#sheet-cres", { replace: true });
+  showCardResults(list, g, false);
+};
+$("#ce-price").onclick = async () => {
+  readCard(); const d = S.cdraft; if (!d || !d.tcgId) return;
+  $("#ce-pricehint").textContent = "Hole den Cardmarket-Preis …";
+  try {
+    const c = await tcgCard(d.tcgId); if (S.cdraft !== d) return;
+    d.cm = cmOf(c); d.valueSource = null; if (d.graded) d.graded = null;
+    applyCardPrice(d); fillCard();
+  } catch (e) { $("#ce-pricehint").textContent = lookupErr(e); }
+};
+$("#ce-form").addEventListener("submit", async e => {
+  e.preventDefault(); readCard();
+  const d = S.cdraft; if (!d) return;
+  const wasNew = !!d._new;
+  // Same card in the same state already there: just count it up.
+  if (wasNew && !d.graded) {
+    const same = S.cards.find(x => x.tcgId === d.tcgId && x.list === d.list && x.variant === d.variant && x.condition === d.condition && (x.cardLang || "de") === d.cardLang && !(x.graded && x.graded.company));
+    if (same) {
+      await CardStore.save({ ...same, qty: qtyOf(same) + qtyOf(d), updatedAt: new Date().toISOString() });
+      closeSheet(); toast(`Hattest du schon – jetzt ×${qtyOf(same) + qtyOf(d)}`); return;
+    }
+  }
+  if (d._blob) { try { d.photoBlobId = await saveBlob(await shrink(d._blob, 1000, 0.85)); } catch {} }
+  d.updatedAt = new Date().toISOString();
+  await CardStore.save(d);
+  closeSheet();
+  toast(wasNew ? (d.list === "wishlist" ? "Auf die Kartenwunschliste gesetzt" : "Karte gespeichert") : "Gespeichert");
+  if (wasNew && !S.setId) { S.cview = d.list === "wishlist" ? "wish" : "collection"; if (S.view !== "cards") setView("cards"); else render(); }
+});
+
+/* --- Card detail --- */
+function openCardDetail(id) { S.cdetailId = id; refreshCardDetail(true); }
+function refreshCardDetail(open) {
+  const c = S.cards.find(x => x.id === S.cdetailId); if (!c) return;
+  const wish = c.list === "wishlist", q = qtyOf(c);
+  $("#cd-where").textContent = wish ? "Karten-Wunschliste" : "Kartensammlung";
+  const cm = c.cm || {}, h = c.variant === "reverse" ? "-holo" : "";
+  const stats = [["Trend", cm["trend" + h]], ["Ø 30 Tage", cm["avg30" + h]], ["Ab", cm["low" + h]]].filter(x => x[1] != null);
+  const graded = c.graded && c.graded.company;
+  const src = c.valueSource === "cardmarket" ? `Cardmarket-Trend${(CCOND[c.condition] || CCOND.NM)[1] < 1 ? `, angepasst für ${CCOND[c.condition][0]} (geschätzt)` : ""} · ${new Date(c.valueDate).toLocaleDateString("de-DE")}` : c.valueSource === "manuell" ? "Eigener Wert" : "";
+  const rows = [["Set", c.setName], ["Nummer", c.number + (c.total ? "/" + c.total : "")], ["Seltenheit", c.rarity], ["Variante", CVAR[c.variant]], ["Sprache", CLANG[c.cardLang]],
+    ["Zustand", graded ? `${c.graded.company} ${c.graded.grade}` : c.condition ? `${c.condition} · ${(CCOND[c.condition] || [""])[0]}` : null], ["Anzahl", q > 1 ? "×" + q : null],
+    ["Hinzugefügt", c.addedAt ? new Date(c.addedAt).toLocaleDateString("de-DE") : null]].filter(x => x[1]);
+  const photo = c.photoBlobId && blobURLs.get(c.photoBlobId);
+  $("#cd-body").innerHTML = `
+    <div class="holo-stage"><div class="holo${/holo|rare|selten|illustration|ultra|hyper|secret|vmax|vstar|ex|gx/i.test((c.rarity || "") + " " + c.variant) ? " shiny" : ""}" id="cd-holo">${cardImgHTML(c, "high")}<span class="holo-shine"></span><span class="holo-glare"></span></div></div>
+    <div class="d-title"><h2>${esc(c.name)}</h2><div class="a">${esc(c.setName)} · ${esc(c.number)}${c.total ? "/" + esc(c.total) : ""}</div></div>
+    <div class="chips">${[graded ? `${c.graded.company} ${c.graded.grade}` : c.condition, CVAR[c.variant], c.cardLang && c.cardLang !== "de" ? CLANG[c.cardLang] : null, c.rarity, q > 1 ? "×" + q : null].filter(Boolean).map(x => `<span class="badge">${esc(x)}</span>`).join("")}</div>
+    <div class="d-value"><div class="eyebrow">${wish ? "Preis ca." : "Wert"}${q > 1 ? ` (${q} Stück)` : ""}</div><div class="v">${fmtMoney(c.value != null ? c.value * q : null)}</div>${src ? `<div class="r">${esc(src)}</div>` : ""}
+      ${stats.length ? `<div class="cm-stats">${stats.map(([k, v]) => `<div><span>${k}</span><b>${fmtMoney(v)}</b></div>`).join("")}</div>` : ""}</div>
+    ${c.condSummary || c.condNotes ? `<div class="cond-box">${condHTML(c, false)}</div>` : ""}
+    <dl class="specs">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+    ${photo ? `<div class="panel"><div class="eyebrow">Dein Foto</div><img class="cd-photo" src="${esc(photo)}" alt="Dein Foto der Karte"></div>` : ""}
+    ${c.notes ? `<div class="panel"><div class="eyebrow">Notizen</div><div>${esc(c.notes)}</div></div>` : ""}
+    <div class="btn-row"><button class="btn" id="cd-move">${wish ? "Gekauft – in die Sammlung" : "Auf die Wunschliste"}</button><button class="btn primary" id="cd-edit">Bearbeiten</button></div>
+    ${c.setId ? `<button class="btn" id="cd-set">Ganzes Set ansehen</button>` : ""}
+    <a class="btn" href="https://www.cardmarket.com/de/Pokemon/Products/Search?searchString=${encodeURIComponent(c.name)}" target="_blank" rel="noopener">Auf Cardmarket suchen</a>
+    <button class="btn danger" id="cd-del">Löschen</button>`;
+  holoTilt($("#cd-holo"));
+  $("#cd-edit").onclick = () => openCardEditor({ ...c }, { replace: true });
+  $("#cd-move").onclick = async () => {
+    S.cdetailId = null; closeSheet();
+    await CardStore.save({ ...c, list: wish ? "collection" : "wishlist", updatedAt: new Date().toISOString(), ...(wish ? { addedAt: new Date().toISOString() } : {}) });
+    toast(wish ? "In die Kartensammlung verschoben" : "Auf die Kartenwunschliste verschoben");
+    S.cview = wish ? "collection" : "wish"; render();
+  };
+  const sb = $("#cd-set"); if (sb) sb.onclick = () => openSet(c.setId, { replace: true });
+  const del = $("#cd-del");
+  del.onclick = async () => {
+    if (!del.classList.contains("armed")) { del.classList.add("armed"); del.textContent = "Wirklich löschen? Nochmal tippen"; setTimeout(() => { if (del.isConnected) { del.classList.remove("armed"); del.textContent = "Löschen"; } }, 4000); return; }
+    S.cdetailId = null; closeSheet(); await CardStore.remove(c); toast("Karte gelöscht");
+  };
+  if (open) openSheet("#sheet-cdetail");
+}
+// The card follows your finger (or the phone's tilt) and catches the light like a real holo.
+let tiltEl = null, tiltRAF = 0;
+function holoTilt(el) {
+  tiltEl = el; if (!el) return;
+  const set = (x, y) => {
+    el.style.setProperty("--rx", ((0.5 - y) * 18).toFixed(2) + "deg"); el.style.setProperty("--ry", ((x - 0.5) * 20).toFixed(2) + "deg");
+    el.style.setProperty("--mx", (x * 100).toFixed(1) + "%"); el.style.setProperty("--my", (y * 100).toFixed(1) + "%");
+    el.style.setProperty("--o", (0.25 + Math.min(0.75, Math.hypot(x - 0.5, y - 0.5) * 1.5)).toFixed(2));
+  };
+  el._set = set;
+  el.addEventListener("pointermove", e => { const r = el.getBoundingClientRect(); el.classList.add("touching"); set(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))); });
+  el.addEventListener("pointerleave", () => { el.classList.remove("touching"); set(0.5, 0.5); });
+  el.addEventListener("pointerup", () => { el.classList.remove("touching"); set(0.5, 0.5); });
+  set(0.5, 0.5);
+}
+window.addEventListener("deviceorientation", e => {
+  if (!tiltEl || !tiltEl.isConnected || tiltEl.classList.contains("touching") || e.gamma == null || tiltRAF) return;
+  tiltRAF = requestAnimationFrame(() => {
+    tiltRAF = 0;
+    const x = 0.5 + Math.max(-1, Math.min(1, e.gamma / 30)) * 0.5, y = 0.5 + Math.max(-1, Math.min(1, ((e.beta || 45) - 45) / 30)) * 0.5;
+    tiltEl._set && tiltEl._set(x, y);
+  });
+});
+
+/* --- One set: every card, owned ones bright --- */
+async function openSet(id, opts) {
+  S.setId = id; S.setData = null;
+  await setIndex().catch(() => null);
+  const s = setById(id);
+  $("#set-title").textContent = s ? s.name : "Set";
+  $("#set-body").innerHTML = `<div class="status"><span class="spinner"></span>Lade alle Karten des Sets …</div>`;
+  openSheet("#sheet-set", opts);
+  try { S.setData = (s && s.de ? await tcg("de", "/sets/" + id) : null) || await tcg("en", "/sets/" + id); }
+  catch (e) { $("#set-body").innerHTML = `<div class="status warn">${esc(lookupErr(e))}</div>`; return; }
+  if (S.setId !== id) return;
+  renderSet();
+}
+function renderSet() {
+  const d = S.setData; if (!d || !S.setId) return;
+  const s = setById(S.setId) || {}, serie = (d.serie && d.serie.id) || s.serie;
+  const own = new Map(), ownRec = new Map(), wish = new Set();
+  for (const c of S.cards) {
+    if (c.setId !== S.setId) continue;
+    if (c.list === "wishlist") { wish.add(c.tcgId); continue; }
+    own.set(c.tcgId, (own.get(c.tcgId) || 0) + qtyOf(c)); if (!ownRec.has(c.tcgId)) ownRec.set(c.tcgId, c.id);
+  }
+  const cards = d.cards || [], have = cards.filter(c => own.has(c.id)).length, pct = cards.length ? Math.round(have / cards.length * 100) : 0;
+  const f = S.setFilter;
+  const shown = cards.filter(c => f === "all" || (f === "have" ? own.has(c.id) : !own.has(c.id)));
+  const val = cardsVal(S.cards.filter(c => c.setId === S.setId && c.list !== "wishlist"));
+  $("#set-body").innerHTML = `
+    <div class="set-head">${d.logo || s.logo ? `<img class="set-logo" src="${esc((d.logo || s.logo) + ".webp")}" alt="" onerror="this.hidden=true">` : ""}
+      <div class="set-prog"><div class="set-nums"><b>${have}</b> von ${cards.length} Karten · ${pct} %</div><span class="trk"><span class="fill" style="width:${pct}%"></span></span>
+      <span class="muted">${[d.releaseDate ? "Erschienen " + new Date(d.releaseDate).toLocaleDateString("de-DE", { month: "long", year: "numeric" }) : "", val ? "Wert " + fmtMoney(val) : ""].filter(Boolean).join(" · ")}</span></div></div>
+    <div class="seg seg3" role="group" aria-label="Filter"><button data-sf="all" aria-pressed="${f === "all"}">Alle</button><button data-sf="miss" aria-pressed="${f === "miss"}">Fehlende</button><button data-sf="have" aria-pressed="${f === "have"}">Meine</button></div>
+    ${shown.length ? `<div class="pgrid set-grid">${shown.map(c => `<button class="pcard ${own.has(c.id) ? "own" : "miss"}" data-sc="${esc(c.id)}">${cardImgHTML({ image: c.image, id: c.id, localId: c.localId, name: c.name, setId: S.setId, serie })}
+      ${own.get(c.id) > 1 ? `<span class="qty">×${own.get(c.id)}</span>` : ""}${wish.has(c.id) ? `<span class="wishmark" aria-label="Auf der Wunschliste">♥</span>` : ""}<span class="pc-n">${esc(c.localId)}</span></button>`).join("")}</div>`
+      : `<p class="muted" style="text-align:center">${f === "have" ? "Aus diesem Set hast du noch keine Karte." : "Du hast alle Karten dieses Sets!"}</p>`}
+    <p class="hint">Tippe auf eine fehlende Karte, um sie hinzuzufügen oder auf die Wunschliste zu setzen.</p>`;
+  $("#set-body").querySelectorAll("[data-sf]").forEach(b => b.onclick = () => { S.setFilter = b.dataset.sf; renderSet(); });
+  $("#set-body").querySelectorAll("[data-sc]").forEach(b => b.onclick = () => {
+    const rid = ownRec.get(b.dataset.sc);
+    if (rid) { openCardDetail(rid); return; }
+    S.cres = null; S.caddTarget = "collection";
+    pickCard(b.dataset.sc, null, {});
+  });
+}
+
+/* --- Background price refresh (every few days, quietly) --- */
+async function refreshCardPrices(all, onProgress) {
+  const old = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);
+  const list = S.cards.filter(c => c.tcgId && (all || ((c.valueSource === "cardmarket" || !c.valueSource) && (!c.valueDate || c.valueDate < old))));
+  let ok = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (onProgress) onProgress(i, list.length, list[i]);
+    try {
+      const card = await tcgCard(list[i].tcgId); const cur = S.cards.find(x => x.id === list[i].id);
+      if (card && cur) { const u = { ...cur, cm: cmOf(card) }; applyCardPrice(u); if (u.valueSource !== "manuell") u.valueDate = new Date().toISOString().slice(0, 10); await IDB.put("cards", u); S.cards[S.cards.indexOf(cur)] = u; ok++; }
+    } catch {}
+    await sleep(150);
+  }
+  if (list.length && (all || (S.view === "cards" && !stack.length && document.activeElement?.id !== "q"))) render();
+  return { ok, total: list.length };
+}
+$("#s-cards-refresh").onclick = async () => {
+  const st = $("#s-cards-status"), btn = $("#s-cards-refresh");
+  if (!S.cards.some(c => c.tcgId)) { st.textContent = "Du hast noch keine Karten."; return; }
+  btn.disabled = true;
+  const r = await refreshCardPrices(true, (i, n, c) => { st.textContent = `${i + 1} / ${n}: ${c.name}`; });
+  btn.disabled = false; st.textContent = `Fertig: ${r.ok} von ${r.total} Kartenpreisen aktualisiert.`;
+};
+
+/* --- Cards tab --- */
+function renderCards() {
+  const v = S.cview, col = S.cards.filter(c => c.list !== "wishlist"), wl = S.cards.filter(c => c.list === "wishlist");
+  const setsStarted = new Set(col.map(c => c.setId)).size;
+  const head = `<header class="top"><div class="wrap">
+    <div class="top-row"><div class="brand"><span class="brand-card"></span><span>Poké<em>karten</em></span></div><div class="eyebrow">${greeting()}</div></div>
+    <div class="hero dusk"><div class="eyebrow">${v === "wish" ? "Wünsche kosten ca." : "Kartenwert"}</div><div class="val">${fmtMoney(v === "wish" ? cardsVal(wl) : cardsVal(col), "EUR", 0)}</div>
+      <div class="sub">${v === "wish" ? `${cardsQty(wl)} ${cardsQty(wl) === 1 ? "Wunsch" : "Wünsche"}` : `${cardsQty(col)} ${cardsQty(col) === 1 ? "Karte" : "Karten"} · ${setsStarted} ${setsStarted === 1 ? "Set" : "Sets"}`}</div></div>
+    <div class="seg seg3 cseg" role="group" aria-label="Ansicht"><button data-cv="collection" aria-pressed="${v === "collection"}">Sammlung</button><button data-cv="sets" aria-pressed="${v === "sets"}">Sets</button><button data-cv="wish" aria-pressed="${v === "wish"}">Wunschliste</button></div>
+    ${v === "sets" ? `<div class="tools"><input class="search" id="q" type="search" placeholder="Set suchen …" value="${esc(S.q)}" aria-label="Set suchen"></div>`
+      : (v === "wish" ? wl : col).length ? `<div class="tools"><input class="search" id="q" type="search" placeholder="Name, Set, Nummer …" value="${esc(S.q)}" aria-label="Karten suchen">
+      <select class="sort" id="csort" aria-label="Sortieren"><option value="added">Neueste</option><option value="value">Wert ↓</option><option value="name">Name A–Z</option><option value="set">Set & Nummer</option></select></div>` : ""}
+  </div></header>`;
+  let body;
+  if (!S.loaded) body = `<div class="empty"><div class="cards-fan"><i></i><i></i><i></i></div><p>Lade Karten …</p></div>`;
+  else if (v === "sets") body = renderSetList(col);
+  else {
+    const all = v === "wish" ? wl : col;
+    const q = S.q.toLowerCase().trim();
+    const list = (q ? all.filter(c => [c.name, c.setName, c.number, c.rarity, c.number + "/" + c.total].some(x => String(x || "").toLowerCase().includes(q))) : all.slice());
+    const by = {
+      added: (a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || "")),
+      value: (a, b) => (num(b.value) || 0) - (num(a.value) || 0),
+      name: (a, b) => String(a.name || "").localeCompare(String(b.name || ""), "de"),
+      set: (a, b) => setOrder(setById(a.setId)) - setOrder(setById(b.setId)) || (parseInt(a.number) || 0) - (parseInt(b.number) || 0)
+    };
+    list.sort(by[S.csort] || by.added);
+    if (!all.length) body = `<div class="empty"><div class="cards-fan"><i></i><i></i><i></i></div><h3>${v === "wish" ? "Noch keine Kartenwünsche" : "Noch keine Karten"}</h3>
+      <p>${v === "wish" ? "Setz Karten drauf, die dir noch fehlen. Am schnellsten über „Sets“: dort siehst du jede fehlende Karte." : "Fotografiere eine Karte. Die App erkennt Set, Nummer und Zustand und holt den Cardmarket-Preis."}</p>
+      <button class="btn primary" id="cempty-add">${v === "wish" ? "Wunsch hinzufügen" : "Erste Karte scannen"}</button></div>`;
+    else if (!list.length) body = `<div class="empty"><p>Nichts gefunden für „${esc(S.q)}“.</p></div>`;
+    else body = `<div class="pgrid${animKey !== (animKey = "cards" + v + S.csort) ? " anim" : ""}">${list.map((c, i) => `<button class="pcard" data-cid="${esc(c.id)}" style="--i:${Math.min(i, 15)}">${cardImgHTML(c)}
+      <span class="pc-badge">${esc(c.graded && c.graded.company ? c.graded.company + " " + c.graded.grade : c.condition || "")}</span>${qtyOf(c) > 1 ? `<span class="qty">×${qtyOf(c)}</span>` : ""}
+      <span class="pc-t">${esc(c.name)}</span><span class="pc-s">${esc(c.setName)} · ${esc(c.number)}</span><span class="pc-v">${fmtMoney(c.value != null ? c.value * qtyOf(c) : null)}</span></button>`).join("")}</div>`;
+  }
+  return head + `<main class="wrap">${body}</main>`;
+}
+function renderSetList(col) {
+  if (!S.setIndex) {
+    setIndex().then(() => { if (S.view === "cards" && S.cview === "sets") render(); }).catch(() => { if (S.view === "cards") { S.setIdxErr = true; render(); } });
+    return S.setIdxErr ? `<div class="status warn" style="margin-top:12px">Die Set-Liste ließ sich nicht laden. Bist du online?</div>` : `<div class="status" style="margin-top:12px"><span class="spinner"></span>Lade alle Sets …</div>`;
+  }
+  const count = new Map(); for (const c of col) count.set(c.setId, (count.get(c.setId) || new Set()).add(c.tcgId));
+  const q = S.q.toLowerCase().trim();
+  const row = s => {
+    const have = count.has(s.id) ? count.get(s.id).size : 0, all = s.total || s.official || 0, pct = all ? Math.min(100, Math.round(have / all * 100)) : 0;
+    const pic = s.logo || s.symbol, initials = esc(s.name.replace(/[^A-Za-zÄÖÜäöü0-9 &]/g, " ").split(/\s+/).filter(w => w && w !== "&").slice(0, 3).map(w => w[0]).join("").toUpperCase());
+    return `<button class="set-row${have ? " started" : ""}" data-set="${esc(s.id)}"><span class="set-ic">${pic ? `<img${s.logo ? "" : ' class="sym"'} src="${esc(pic + ".webp")}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false">` : ""}<span class="set-ph"${pic ? " hidden" : ""}>${initials}</span></span>
+      <span class="set-tx"><b>${esc(s.name)}</b><span>${have ? `${have} von ${all}` : `${all} Karten`}</span>${have ? `<span class="trk"><span class="fill" style="width:${pct}%"></span></span>` : ""}</span></button>`;
+  };
+  const series = S.setIndex.series.map(se => ({ ...se, sets: se.sets.filter(s => !q || s.name.toLowerCase().includes(q) || se.name.toLowerCase().includes(q)) })).filter(se => se.sets.length);
+  const mine = S.setIndex.series.flatMap(se => se.sets).filter(s => count.has(s.id) && (!q || s.name.toLowerCase().includes(q)));
+  return `${mine.length ? `<div class="ser-h">Deine Sets</div><div class="set-list">${mine.map(row).join("")}</div>` : ""}
+    ${series.map(se => `<div class="ser-h">${esc(se.name)}</div><div class="set-list">${se.sets.map(row).join("")}</div>`).join("")}
+    ${!series.length ? `<div class="empty"><p>Kein Set gefunden für „${esc(S.q)}“.</p></div>` : ""}`;
+}
+function bindCards(app) {
+  app.querySelectorAll("[data-cv]").forEach(b => b.onclick = () => { if (S.cview === b.dataset.cv) return; S.cview = b.dataset.cv; S.q = ""; render(); window.scrollTo(0, 0); });
+  app.querySelectorAll("[data-cid]").forEach(b => b.onclick = () => openCardDetail(b.dataset.cid));
+  app.querySelectorAll("[data-set]").forEach(b => b.onclick = () => openSet(b.dataset.set));
+  const so = $("#csort"); if (so) { so.value = S.csort; so.onchange = () => { S.csort = so.value; render(); }; }
+  const ea = $("#cempty-add"); if (ea) ea.onclick = openCardAdd;
+}
+function cardsProfilePanel(recordsTotal) {
+  const col = S.cards.filter(c => c.list !== "wishlist");
+  if (!col.length) return "";
+  const val = cardsVal(col), top = col.filter(c => num(c.value)).sort((a, b) => num(b.value) - num(a.value)).slice(0, 3);
+  return `<div class="stats">
+      <div class="stat"><span class="eyebrow">Pokémon-Karten</span><span class="n">${cardsQty(col)}</span></div>
+      <div class="stat dusk"><span class="eyebrow">Kartenwert</span><span class="n">${fmtMoney(val, "EUR", 0)}</span></div>
+    </div>
+    <div class="panel"><div class="sec-title" style="padding:0"><h3>Gesamtwert</h3><span class="mono" style="font-weight:700;color:var(--gold)">${fmtMoney(recordsTotal + val, "EUR", 0)}</span></div>
+      <p class="hint" style="margin:0">Platten ${fmtMoney(recordsTotal, "EUR", 0)} · Karten ${fmtMoney(val, "EUR", 0)}</p></div>
+    ${top.length ? `<div class="panel"><h3>Wertvollste Karten</h3><div class="top3">${top.map(c => `<button data-pcid="${esc(c.id)}"><span class="mini-card">${cardImgHTML(c)}</span><span class="tx"><b>${esc(c.name)}</b><span>${esc(c.setName)} · ${esc(c.number)}</span></span><span class="p">${fmtMoney(c.value)}</span></button>`).join("")}</div></div>` : ""}`;
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-pcid]"); if (b) openCardDetail(b.dataset.pcid); });
 
 /* ---------------- Render ---------------- */
 let animKey = ""; // cards fade in when a list is first shown, not on every search keystroke
@@ -1916,6 +2692,7 @@ function renderProfile() {
         <div class="stat"><span class="eyebrow">Wunschliste</span><span class="n">${wish.length}</span></div>
         <div class="stat"><span class="eyebrow">Wünsche kosten</span><span class="n">${fmtMoney(sumOf(wish), "EUR", 0)}</span></div>
       </div>
+      ${cardsProfilePanel(total)}
       ${goal ? `<div class="panel"><div class="sec-title" style="padding:0"><h3>Ziel: ${goal} Platten</h3><span class="mono muted">${Math.min(100, Math.round(col.length / goal * 100))} %</span></div>
         <div class="bar" style="grid-template-columns:1fr"><span class="trk" style="height:10px"><span class="fill" style="width:${Math.min(100, col.length / goal * 100).toFixed(1)}%"></span></span></div></div>` : ""}
       ${col.length ? `<div class="panel"><div class="sec-title" style="padding:0"><h3>Wertvollste Platten</h3><span class="mono muted">Ø ${fmtMoney(avg, "EUR", 0)}</span></div>
@@ -1931,7 +2708,8 @@ function render() {
   const app = $("#app");
   const focusQ = document.activeElement && document.activeElement.id === "q";
   const caret = focusQ ? document.activeElement.selectionStart : null;
-  app.innerHTML = S.view === "profile" ? renderProfile() : renderList(S.view);
+  app.innerHTML = S.view === "profile" ? renderProfile() : S.view === "cards" ? renderCards() : renderList(S.view);
+  if (S.view === "cards") bindCards(app);
   document.querySelectorAll(".tab[data-view]").forEach(t => { if (t.dataset.view === S.view) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
   const q = $("#q"); if (q) { q.oninput = () => { S.q = q.value; render(); }; if (focusQ) { q.focus(); try { q.setSelectionRange(caret, caret); } catch {} } }
   const so = $("#sort"); if (so) { so.value = S.sort; so.onchange = () => { S.sort = so.value; render(); }; }
@@ -1949,12 +2727,14 @@ function render() {
 async function loadAll() {
   try {
     S.records = await IDB.all("records");
+    S.cards = await IDB.all("cards").catch(() => []);
     S.profile = (await IDB.get("kv", "profile")) || {};
     S.settings = (await IDB.get("kv", "settings")) || {};
     await preloadBlobs();
   } catch { toast("Der Speicher des Browsers ist nicht verfügbar."); }
   S.loaded = true; render(); hideSplash();
   setTimeout(backfillVinyl, 4000);
+  setTimeout(() => refreshCardPrices(false).catch(() => {}), 8000);
 }
 function hideSplash() {
   const s = $("#splash"); if (!s) return;
