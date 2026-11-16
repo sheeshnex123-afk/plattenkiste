@@ -479,6 +479,17 @@ body.has-player { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom
 .set-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px 8px; }
 .pcard.picking .pimg { animation: pickPulse .7s ease-in-out infinite alternate; box-shadow: 0 0 0 3px #8f86e2, var(--shadow); }
 @keyframes pickPulse { to { transform: scale(.95); opacity: .7; } }
+.set-grid .pc-badge { left: 4px; top: 4px; font-size: 9.5px; padding: 1px 6px; }
+.sg-v { position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); bottom: 26px; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 99px; background: var(--surface); color: var(--gold); box-shadow: 0 2px 6px rgba(0,0,0,.18); white-space: nowrap; }
+.own-list { display: grid; gap: 8px; }
+.own-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); text-align: left; box-shadow: var(--shadow); animation: rise .4s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 35ms); transition: transform .15s; }
+.own-row:active { transform: scale(.98); }
+.own-row .mini-card { width: 52px; }
+.own-row .tx { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.own-row .tx b { font-family: var(--f-display); font-variation-settings: "SOFT" 100; font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.own-row .tx span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.own-r { display: grid; justify-items: end; gap: 3px; flex: none; font-size: 12px; }
+.own-r .p { color: var(--gold); font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .set-grid .pcard.miss .pimg { filter: grayscale(1) brightness(.9); opacity: .38; box-shadow: none; }
 .set-grid .pcard.own .pimg { box-shadow: 0 0 0 2px #8f86e2, var(--shadow); }
 
@@ -2827,28 +2838,46 @@ const inOpenSet = c => c.setId === S.setId && (S.setLang ? c.tcgLang === S.setLa
 function renderSet() {
   const d = S.setData; if (!d || !S.setId) return;
   const s = (S.setLang ? asiaSetOf(S.setLang, S.setId) : setById(S.setId)) || {}, serie = (d.serie && d.serie.id) || s.serie;
-  const own = new Map(), ownRec = new Map(), wish = new Set();
+  const own = new Map(), ownRec = new Map(), ownAll = new Map(), wish = new Set();
   for (const c of S.cards) {
     if (!inOpenSet(c)) continue;
     if (c.list === "wishlist") { wish.add(c.tcgId); continue; }
     own.set(c.tcgId, (own.get(c.tcgId) || 0) + qtyOf(c)); if (!ownRec.has(c.tcgId)) ownRec.set(c.tcgId, c.id);
+    ownAll.set(c.tcgId, [...(ownAll.get(c.tcgId) || []), c]);
   }
   const cards = d.cards || [], have = cards.filter(c => own.has(c.id)).length, pct = cards.length ? Math.round(have / cards.length * 100) : 0;
   const f = S.setFilter;
   const shown = cards.filter(c => f === "all" || (f === "have" ? own.has(c.id) : !own.has(c.id)));
   const val = cardsVal(S.cards.filter(c => inOpenSet(c) && c.list !== "wishlist"));
+  // Owned cards show their condition and value right on the tile.
+  const tileInfo = id => {
+    const recs = ownAll.get(id); if (!recs) return "";
+    const conds = [...new Set(recs.map(r => r.graded && r.graded.company ? r.graded.company + " " + r.graded.grade : r.condition))].filter(Boolean);
+    const v = cardsVal(recs);
+    return `<span class="pc-badge">${esc(conds.length > 1 ? conds.length + " Zustände" : conds[0] || "")}</span>${v ? `<span class="sg-v">${fmtMoney(v)}</span>` : ""}`;
+  };
+  // "Meine": a list with the details of every owned copy.
+  const ownList = cards.filter(c => ownAll.has(c.id)).flatMap(c => ownAll.get(c.id));
+  const ownRows = ownList.map((r, i) => `<button class="own-row" data-cid="${esc(r.id)}" style="--i:${Math.min(i, 12)}"><span class="mini-card">${cardImgHTML(r, "low", i < 10)}</span>
+    <span class="tx"><b>${esc(r.name)}</b><span>Nr. ${esc(r.number)}${r.total ? "/" + esc(r.total) : ""} · ${esc(CVAR[r.variant] || r.variant || "")}${r.cardLang && r.cardLang !== "de" ? " · " + esc(CLANG[r.cardLang] || r.cardLang) : ""}</span>
+      <span>${r.rarity ? esc(r.rarity) + " · " : ""}seit ${r.addedAt ? new Date(r.addedAt).toLocaleDateString("de-DE") : "–"}</span></span>
+    <span class="own-r"><span class="badge">${esc(r.graded && r.graded.company ? r.graded.company + " " + r.graded.grade : r.condition || "")}</span>${qtyOf(r) > 1 ? `<span class="muted">×${qtyOf(r)}</span>` : ""}<span class="p">${fmtMoney(r.value != null ? r.value * qtyOf(r) : null)}</span></span></button>`).join("");
   $("#set-body").innerHTML = `
     <div class="set-head">${d.logo || s.logo ? `<img class="set-logo" src="${esc((d.logo || s.logo) + ".webp")}" alt="" onerror="this.hidden=true">` : ""}
       <div class="set-prog"><div class="set-nums"><b>${have}</b> von ${cards.length} Karten · ${pct} %</div><span class="trk"><span class="fill" style="width:${pct}%"></span></span>
       <span class="muted">${[d.releaseDate ? "Erschienen " + new Date(d.releaseDate).toLocaleDateString("de-DE", { month: "long", year: "numeric" }) : "", val ? "Wert " + fmtMoney(val) : ""].filter(Boolean).join(" · ")}</span></div></div>
     <div class="seg seg3" role="group" aria-label="Filter"><button data-sf="all" aria-pressed="${f === "all"}">Alle</button><button data-sf="miss" aria-pressed="${f === "miss"}">Fehlende</button><button data-sf="have" aria-pressed="${f === "have"}">Meine</button></div>
-    ${shown.length ? `<div class="pgrid set-grid">${shown.map((c, i) => `<button class="pcard ${own.has(c.id) ? "own" : "miss"}" data-sc="${esc(c.id)}">${cardImgHTML({ image: c.image, id: c.id, localId: c.localId, name: c.name, setId: S.setId, serie, tcgLang: S.setLang }, "low", i < 12)}
-      ${own.get(c.id) > 1 ? `<span class="qty">×${own.get(c.id)}</span>` : ""}${wish.has(c.id) ? `<span class="wishmark" aria-label="Auf der Wunschliste">♥</span>` : ""}<span class="pc-n">${esc(c.localId)}</span></button>`).join("")}</div>`
+    ${f === "have" && ownList.length ? `<div class="own-list">${ownRows}</div>`
+      : shown.length ? `<div class="pgrid set-grid">${shown.map((c, i) => `<button class="pcard ${own.has(c.id) ? "own" : "miss"}" data-sc="${esc(c.id)}">${cardImgHTML({ image: c.image, id: c.id, localId: c.localId, name: c.name, setId: S.setId, serie, tcgLang: S.setLang }, "low", i < 12)}
+      ${tileInfo(c.id)}${own.get(c.id) > 1 ? `<span class="qty">×${own.get(c.id)}</span>` : ""}${wish.has(c.id) ? `<span class="wishmark" aria-label="Auf der Wunschliste">♥</span>` : ""}<span class="pc-n">${esc(c.localId)}</span></button>`).join("")}</div>`
       : `<p class="muted" style="text-align:center">${f === "have" ? "Aus diesem Set hast du noch keine Karte." : "Du hast alle Karten dieses Sets!"}</p>`}
-    <p class="hint">Tippe auf eine fehlende Karte, um sie hinzuzufügen oder auf die Wunschliste zu setzen.</p>`;
+    <p class="hint">${f === "have" ? "Tippe auf eine Karte für alle Details, Preise und dein Foto." : "Deine Karten leuchten – tippe drauf für alle Details. Tippe auf eine fehlende Karte, um sie hinzuzufügen oder auf die Wunschliste zu setzen."}</p>`;
   $("#set-body").querySelectorAll("[data-sf]").forEach(b => b.onclick = () => { S.setFilter = b.dataset.sf; renderSet(); });
+  $("#set-body").querySelectorAll(".own-row[data-cid]").forEach(b => b.onclick = () => openCardDetail(b.dataset.cid));
   $("#set-body").querySelectorAll("[data-sc]").forEach(b => b.onclick = () => {
     const rid = ownRec.get(b.dataset.sc);
+    // Several copies (e.g. different conditions): show them all in the list instead of just the first.
+    if (rid && (ownAll.get(b.dataset.sc) || []).length > 1) { S.setFilter = "have"; renderSet(); $("#sheet-set").scrollTop = 0; toast("Diese Karte hast du mehrfach – hier sind alle Exemplare."); return; }
     if (rid) { openCardDetail(rid); return; }
     S.cres = null; S.caddTarget = "collection";
     pickCard(b.dataset.sc, null, {}, S.setLang);
